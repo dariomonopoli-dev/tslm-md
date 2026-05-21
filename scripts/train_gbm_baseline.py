@@ -35,15 +35,26 @@ def load_xy(
     featurized_h5: Path,
     targets_json: Path,
 ) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    """Case-insensitive join over splits, featurized.h5, and targets.json.
+
+    MISATO HDF5 and Zenodo splits are uppercase; kierandidi CSV is uppercase
+    but we lowercase keys in build_training_targets.py. Build a lowercase
+    canonical lookup for both sides.
+    """
     with targets_json.open() as f:
         targets = json.load(f)
+    targets_lower = {k.lower(): v for k, v in targets.items()}
+
     X, y, used = [], [], []
     with h5py.File(featurized_h5, "r") as h5:
+        h5_keys_lower = {k.lower(): k for k in h5.keys()}
         for pid in pdb_ids:
-            if pid not in h5 or pid not in targets:
+            actual_h5_pid = h5_keys_lower.get(pid.lower())
+            target = targets_lower.get(pid.lower())
+            if actual_h5_pid is None or target is None:
                 continue
-            X.append(aggregate(h5[pid][:]))
-            y.append(targets[pid]["affinity_kcal_mol"])
+            X.append(aggregate(h5[actual_h5_pid][:]))
+            y.append(target["affinity_kcal_mol"])
             used.append(pid)
     return np.array(X), np.array(y), used
 
