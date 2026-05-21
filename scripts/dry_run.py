@@ -75,9 +75,11 @@ def main(args: argparse.Namespace) -> None:
     step(3, "Build single-item OpenTSLM batch dict")
     pre, post = build_prompts(args.pdb_id)
     dummy_answer = "Answer: -7.2 kcal/mol. Confidence: medium."
+    # Chronos encoder is univariate per chunk — pass 6 channels as 6 chunks
+    # with one descriptor each (mirrors OpenTSLM ECG-QA 12-lead pattern).
     batch_item = {
-        "time_series": feats,                                   # [6, 30]
-        "time_series_text": ["MD trajectory features per frame"],
+        "time_series": feats,                                   # [6, 30] = 6 chunks x 30 frames
+        "time_series_text": channel_descriptors(),              # 6 descriptors, one per chunk
         "pre_prompt": pre,
         "post_prompt": post,
         "answer": dummy_answer,
