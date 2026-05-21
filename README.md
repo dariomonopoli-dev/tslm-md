@@ -2,7 +2,7 @@
 
 Agentic binding-affinity copilot for drug discovery — **first Time-Series Language Model applied to molecular dynamics**.
 
-Built on [OpenTSLM](https://github.com/StanfordBDHG/OpenTSLM) (gated cross-attention adapter over a frozen Llama-3.2-1B) + [MISATO](https://github.com/sab148/MiSaTo-dataset) (protein-ligand MD trajectories + per-frame energies).
+Built on [OpenTSLM](https://github.com/StanfordBDHG/OpenTSLM) — specifically the [liu-jc Chronos-2 fork](https://github.com/liu-jc/OpenTSLM/tree/add-chronos2-encoder) directly recommended by the OpenTSLM team — gated cross-attention adapter over a frozen Llama-3.2-1B + Amazon's Chronos-2 as time-series encoder. Pretrained checkpoint: [`juncliu/llama-3.2-1b-ecg-flamingo-epoch-35`](https://huggingface.co/juncliu/llama-3.2-1b-ecg-flamingo-epoch-35). Data: [MISATO](https://github.com/sab148/MiSaTo-dataset) protein-ligand MD trajectories + per-frame energies.
 
 ETH Agentic Systems Lab × AWS Hackathon — May 2026.
 

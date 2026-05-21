@@ -27,10 +27,16 @@ if python -c "import torch; print(f'    torch: {torch.__version__}, cuda: {torch
   :
 fi
 
-echo "==> 2/5 Cloning third_party deps (OpenTSLM + MiSaTo-dataset)"
+echo "==> 2/5 Cloning third_party deps (OpenTSLM Chronos fork + MiSaTo-dataset)"
+# Per OpenTSLM team's direct recommendation: use the liu-jc fork's
+# add-chronos2-encoder branch, which uses Amazon Chronos-2 as the time-series
+# encoder and pairs with the better juncliu/llama-3.2-1b-ecg-flamingo-epoch-35
+# checkpoint. Falls back to upstream main if the fork is unreachable.
 mkdir -p third_party
 if [ ! -d third_party/OpenTSLM ]; then
-  git clone --depth 1 https://github.com/StanfordBDHG/OpenTSLM third_party/OpenTSLM
+  git clone --depth 1 -b add-chronos2-encoder \
+    https://github.com/liu-jc/OpenTSLM third_party/OpenTSLM \
+  || git clone --depth 1 https://github.com/StanfordBDHG/OpenTSLM third_party/OpenTSLM
 fi
 if [ ! -d third_party/MiSaTo-dataset ]; then
   git clone --depth 1 https://github.com/sab148/MiSaTo-dataset third_party/MiSaTo-dataset
@@ -74,9 +80,13 @@ else
 fi
 
 echo
-echo "==> Pre-warming HF cache (Llama-3.2-1B + OpenTSLM stage-5 checkpoint)"
+echo "==> Pre-warming HF cache"
+echo "    1) Llama-3.2-1B backbone (gated — accept Meta license on HF first)"
 $HF_CLI download meta-llama/Llama-3.2-1B
-$HF_CLI download OpenTSLM/llama-3.2-1b-ecg-flamingo
+echo "    2) Chronos-2 time-series encoder (Amazon, public)"
+$HF_CLI download amazon/chronos-2 || echo "    (chronos-2 may also auto-download on first model init)"
+echo "    3) Pretrained adapter checkpoint (juncliu Chronos-encoder, public)"
+$HF_CLI download juncliu/llama-3.2-1b-ecg-flamingo-epoch-35
 
 echo
 echo "============================================================"

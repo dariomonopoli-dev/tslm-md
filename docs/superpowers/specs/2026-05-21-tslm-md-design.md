@@ -22,7 +22,9 @@ The model artifact is real (trained perceiver + gated cross-attention + CNN enco
 | Dataset | MISATO (Zenodo record 7711953) + PDBbind v2020 index for affinity labels |
 | Backbone | `meta-llama/Llama-3.2-1B`, frozen |
 | Adapter | OpenTSLM Flamingo (`OpenTSLMFlamingo`) — gated cross-attention every N layers |
-| Starting weights | `OpenTSLM/llama-3.2-1b-ecg-flamingo` (stage-5 ECG-CoT checkpoint) |
+| Starting weights | `juncliu/llama-3.2-1b-ecg-flamingo-epoch-35` (Chronos-2-encoder variant — directly recommended by the OpenTSLM team as their current best checkpoint) |
+| Encoder | Amazon **Chronos-2** (`amazon/chronos-2`, pretrained foundation model for time-series). Frozen by default. Replaces the original `CNNTokenizer`. |
+| Source | `liu-jc/OpenTSLM` branch `add-chronos2-encoder` (the fork the OpenTSLM team pointed us at) |
 | Training stage | New `stage6_md_cot` in OpenTSLM's `CurriculumTrainer` |
 | Output format | `"Answer: <x> kcal/mol. Confidence: <high|medium|low>"` — minimal text |
 | Rationale | **Deterministic, computed at inference from the same feature tensor** (not LM-generated) |

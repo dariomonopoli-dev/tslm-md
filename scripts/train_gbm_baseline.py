@@ -1,11 +1,97 @@
-"""R1 disproof experiment: GBM baseline on aggregated [6] features per complex.
+"""R1 disproof experiment: sklearn GradientBoostingRegressor baseline.
 
-Train sklearn.ensemble.GradientBoostingRegressor on (mean, std, min, max) of the
-6 channels per complex -> affinity. Report val Pearson r.
+If GBM on aggregated [mean/std/min/max] of our 6 channels achieves val Pearson r >= 0.3,
+the binding signal IS in our featurisation and TSLM should at least match.
+If r < 0.1, our features are too thin and need extra channels (H-bonds, contact-map entropy).
 
-If r >= 0.3 the binding signal IS in our features -> safe to proceed.
-If r <  0.1 the features are too thin -> add channels 7-8 (H-bonds, contact entropy).
-
-Stub: implement during hour 2-4.
+This is the cheapest informative experiment in the spec — run at hour 4.
 """
-# TODO(hour 2-4): implement
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import h5py
+import numpy as np
+from sklearn.ensemble import GradientBoostingRegressor
+from scipy.stats import pearsonr, spearmanr
+from tqdm import tqdm
+
+
+def aggregate(feats: np.ndarray) -> np.ndarray:
+    """[6, F] -> [24] (mean, std, min, max per channel)."""
+    return np.concatenate([feats.mean(1), feats.std(1), feats.min(1), feats.max(1)])
+
+
+def load_split(split_file: Path) -> list[str]:
+    with split_file.open() as f:
+        return [l.strip() for l in f if l.strip()]
+
+
+def load_xy(
+    pdb_ids: list[str],
+    featurized_h5: Path,
+    targets_json: Path,
+) -> tuple[np.ndarray, np.ndarray, list[str]]:
+    with targets_json.open() as f:
+        targets = json.load(f)
+    X, y, used = [], [], []
+    with h5py.File(featurized_h5, "r") as h5:
+        for pid in pdb_ids:
+            if pid not in h5 or pid not in targets:
+                continue
+            X.append(aggregate(h5[pid][:]))
+            y.append(targets[pid]["affinity_kcal_mol"])
+            used.append(pid)
+    return np.array(X), np.array(y), used
+
+
+def main(args: argparse.Namespace) -> None:
+    splits_dir = Path(args.splits_dir)
+    h5p = Path(args.featurized_h5)
+    tjp = Path(args.targets_json)
+
+    print("loading train")
+    X_tr, y_tr, _ = load_xy(load_split(splits_dir / "train.txt"), h5p, tjp)
+    print("loading val")
+    X_va, y_va, _ = load_xy(load_split(splits_dir / "val.txt"), h5p, tjp)
+    print(f"train shape={X_tr.shape}  val shape={X_va.shape}")
+
+    if X_tr.size == 0 or X_va.size == 0:
+        raise SystemExit("no data — did preprocess_features.py and build_training_targets.py run?")
+
+    model = GradientBoostingRegressor(
+        n_estimators=400, max_depth=4, learning_rate=0.05, subsample=0.9, random_state=42,
+    )
+    print("fitting GBM...")
+    model.fit(X_tr, y_tr)
+
+    p_tr = model.predict(X_tr)
+    p_va = model.predict(X_va)
+    r_tr = pearsonr(p_tr, y_tr)[0]
+    r_va = pearsonr(p_va, y_va)[0]
+    rho_va = spearmanr(p_va, y_va)[0]
+    mae_va = float(np.mean(np.abs(p_va - y_va)))
+
+    print()
+    print(f"  train Pearson r = {r_tr:.4f}")
+    print(f"  val   Pearson r = {r_va:.4f}")
+    print(f"  val   Spearman  = {rho_va:.4f}")
+    print(f"  val   MAE       = {mae_va:.4f}  kcal/mol")
+    print()
+    if r_va >= 0.3:
+        print("✅ R1 PASS — binding signal IS in the 6 features. TSLM has a real target.")
+    elif r_va >= 0.1:
+        print("⚠ R1 MARGINAL — weak signal. Consider adding ch7=H-bonds, ch8=contact-map entropy.")
+    else:
+        print("❌ R1 FAIL — features too thin. Add more channels before training the TSLM.")
+
+
+if __name__ == "__main__":
+    p = argparse.ArgumentParser()
+    p.add_argument("--featurized-h5", default="data/featurized.h5")
+    p.add_argument("--targets-json", default="data/targets.json")
+    p.add_argument("--splits-dir", default="data/splits")
+    main(p.parse_args())

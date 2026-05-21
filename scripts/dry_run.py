@@ -99,6 +99,7 @@ def main(args: argparse.Namespace) -> None:
         llm_id=args.llm_id,
         device=device,
         cross_attn_every_n_layers=args.cross_attn_every_n_layers,
+        encoder_type=args.encoder_type,
     )
     trainable = sum(p.numel() for p in model.model.parameters() if p.requires_grad)
     print(f"  trainable params: {trainable:,} ({trainable / 1e6:.1f} M)")
@@ -184,4 +185,8 @@ if __name__ == "__main__":
     p.add_argument("--pdb-id", default="11GS", help="PDB id present in --misato-h5")
     p.add_argument("--llm-id", default="meta-llama/Llama-3.2-1B")
     p.add_argument("--cross-attn-every-n-layers", type=int, default=1)
+    p.add_argument(
+        "--encoder-type", default="chronos2", choices=["chronos2", "cnn"],
+        help="chronos2 = Amazon Chronos-2 encoder (recommended by OpenTSLM team); cnn = original CNNTokenizer fallback",
+    )
     main(p.parse_args())
