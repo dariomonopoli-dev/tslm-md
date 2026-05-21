@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+build/
+dist/
+
+# venvs
+.venv/
+venv/
+env/
+
+# Heavy artefacts (never commit)
+data/*
+!data/.gitkeep
+third_party/*
+!third_party/.gitkeep
+checkpoints/
+results/
+*.pt
+*.bin
+*.safetensors
+*.hdf5
+*.h5
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Caches
+.cache/
+.mypy_cache/
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Local env
+.env
+.env.local

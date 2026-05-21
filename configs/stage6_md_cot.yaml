@@ -1,0 +1,36 @@
+# Stage-6 training config.
+# Plugs into OpenTSLM CurriculumTrainer.
+
+model:
+  type: OpenTSLMFlamingo
+  llm_id: meta-llama/Llama-3.2-1B
+  starting_checkpoint: OpenTSLM/llama-3.2-1b-ecg-flamingo
+  cross_attn_every_n_layers: 1
+  freeze_lm_embeddings: false
+
+data:
+  featurized_h5: data/featurized.h5
+  pdbbind_index: data/pdbbind_index/index_v2020.tsv
+  splits_dir: data/splits
+  n_frames_out: 30
+  n_channels: 6
+
+training:
+  batch_size: 1
+  grad_accum_steps: 16
+  precision: bf16
+  gradient_checkpointing: true
+  optimizer: adamw
+  lr: 1.0e-4
+  weight_decay: 0.01
+  warmup_frac: 0.05
+  max_steps: 4000
+  ckpt_every_steps: 1000
+  eval_every_steps: 200
+  log_every_steps: 10
+  early_stop_patience: 5
+  grad_clip_norm: 1.0
+
+paths:
+  results_dir: results/stage6_md_cot
+  checkpoint_dir: results/stage6_md_cot/checkpoints
