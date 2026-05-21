@@ -23,16 +23,16 @@ training:
   optimizer: adamw
   lr: 1.0e-4
   weight_decay: 0.01
-  warmup_frac: 0.05
-  max_steps: 4000
-  ckpt_every_steps: 1000
-  eval_every_steps: 200
-  log_every_steps: 10
-  early_stop_patience: 5
+  warmup_frac: 0.05            # 5% linear warmup, then cosine decay to 0
+  max_steps: 16000             # forward passes — = 10 epochs over 1625 train samples
+  ckpt_every_steps: 4000       # 4 checkpoints + final.pt — ~5 x 7GB = 35GB disk
+  eval_every_steps: 500        # cheap val-loss probe, 32 probes total
+  log_every_steps: 20          # log line cadence
+  early_stop_patience: 5       # NOT currently wired into training loop
   grad_clip_norm: 1.0
   # Real-time visualisation: every vis_every_steps, generate on vis_n_samples
   # val items, parse, compute Pearson/Spearman/MAE, push scatter PNG to wandb.
-  vis_every_steps: 500
+  vis_every_steps: 1000        # 16 scatter plots over training — "watch it converge"
   vis_n_samples: 20
   vis_max_new_tokens: 50
 

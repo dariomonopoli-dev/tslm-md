@@ -31,6 +31,7 @@ from opentslm.time_series_datasets.util import (
     extend_time_series_to_match_patch_size_and_aggregate,
 )
 from opentslm.model_config import PATCH_SIZE
+from transformers import get_cosine_schedule_with_warmup
 
 from tslm_md.dataset import MDCoTQADataset
 from tslm_md.featurize import normalise
@@ -279,7 +280,7 @@ def main(args: argparse.Namespace) -> None:
         val_ds, batch_size=cfg["training"]["batch_size"], shuffle=False, collate_fn=collate
     )
 
-    # 3) optimiser
+    # 3) optimiser + LR schedule (linear warmup -> cosine decay)
     trainable = [p for p in model.model.parameters() if p.requires_grad]
     optim = torch.optim.AdamW(
         trainable,
@@ -292,6 +293,18 @@ def main(args: argparse.Namespace) -> None:
     ckpt_dir = Path(cfg["paths"]["checkpoint_dir"])
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     ckpt_every = int(cfg["training"]["ckpt_every_steps"])
+
+    total_optim_steps = max(max_steps // accum, 1)
+    warmup_frac = float(cfg["training"].get("warmup_frac", 0.0))
+    warmup_optim_steps = int(round(total_optim_steps * warmup_frac))
+    scheduler = get_cosine_schedule_with_warmup(
+        optim,
+        num_warmup_steps=warmup_optim_steps,
+        num_training_steps=total_optim_steps,
+    )
+    print(f"LR schedule: warmup {warmup_optim_steps} optim-steps "
+          f"-> cosine decay over {total_optim_steps} optim-steps "
+          f"(= {max_steps} forward passes / {accum} grad_accum)")
 
     eval_every = int(cfg["training"].get("eval_every_steps", 0))
     vis_every = int(cfg["training"].get("vis_every_steps", 0))
@@ -339,18 +352,27 @@ def main(args: argparse.Namespace) -> None:
             if (step + 1) % accum == 0:
                 torch.nn.utils.clip_grad_norm_(trainable, float(cfg["training"]["grad_clip_norm"]))
                 optim.step()
+                scheduler.step()
                 optim.zero_grad(set_to_none=True)
 
             if step % log_every == 0:
                 elapsed = time.time() - t_start
                 steps_per_sec = (step + 1) / max(elapsed, 1e-6)
-                print(f"step={step:>6d}  loss={loss.item():.4f}  "
-                      f"sps={steps_per_sec:.2f}  elapsed={elapsed:.0f}s")
+                steps_left = max(max_steps - step - 1, 0)
+                eta_s = steps_left / max(steps_per_sec, 1e-9)
+                eta_min = eta_s / 60.0
+                eta_str = (f"{eta_min:.1f}min" if eta_min < 60
+                           else f"{eta_min/60:.2f}h")
+                print(f"step={step:>6d}/{max_steps}  loss={loss.item():.4f}  "
+                      f"sps={steps_per_sec:.2f}  elapsed={elapsed:.0f}s  "
+                      f"eta={eta_str}  ({steps_left} steps left)")
                 wb.log({
                     "train/loss": float(loss.item()),
                     "train/lr": optim.param_groups[0]["lr"],
                     "train/steps_per_sec": steps_per_sec,
                     "train/elapsed_s": elapsed,
+                    "train/eta_min": eta_min,
+                    "train/steps_left": steps_left,
                     "step": step,
                 })
 
