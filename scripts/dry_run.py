@@ -20,7 +20,7 @@ import h5py
 import torch
 
 from tslm_md.featurize import featurize, F_SUB, N_CHANNELS
-from tslm_md.prompts import build_prompts
+from tslm_md.prompts import build_prompts, channel_descriptors
 
 
 def step(n: int, name: str) -> None:

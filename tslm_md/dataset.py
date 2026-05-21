@@ -29,7 +29,7 @@ from datasets import Dataset
 # OpenTSLM is installed via pip install -e third_party/OpenTSLM
 from opentslm.time_series_datasets.QADataset import QADataset
 
-from tslm_md.prompts import build_prompts
+from tslm_md.prompts import build_prompts, channel_descriptors
 
 
 class MDCoTQADataset(QADataset):
@@ -95,7 +95,9 @@ class MDCoTQADataset(QADataset):
             return torch.from_numpy(f[pdb_id][:])  # [6, 30] float32
 
     def _get_time_series_text(self, row) -> list[str]:
-        return ["MD trajectory features per frame (6 channels x 30 subsampled frames)"]
+        # ONE descriptor per channel — pairs with each Chronos-encoded chunk.
+        # Order MUST match the channel order in tslm_md.featurize.
+        return channel_descriptors()
 
     def _get_pre_prompt(self, row) -> str:
         return build_prompts(row["pdb_id"])[0]

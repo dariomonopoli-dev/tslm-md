@@ -14,7 +14,7 @@ import h5py
 import torch
 
 from tslm_md.featurize import featurize, normalise
-from tslm_md.prompts import build_prompts
+from tslm_md.prompts import build_prompts, channel_descriptors
 from tslm_md.parse import parse_answer
 from tslm_md.rationale import deterministic_rationale, channel_summary_dict
 from tslm_md.verifier import VerifierStats, combined_independent_energy
@@ -71,8 +71,8 @@ def run_agent(
     # 2) call the trained TSLM
     pre_prompt, post_prompt = build_prompts(pdb_id)
     batch_item = {
-        "time_series": feats_norm,
-        "time_series_text": ["MD trajectory features per frame"],
+        "time_series": feats_norm,                  # [6, 30] — 6 univariate chunks
+        "time_series_text": channel_descriptors(),  # 6 descriptors, one per chunk
         "pre_prompt": pre_prompt,
         "post_prompt": post_prompt,
         "answer": "",   # not used at generation time
