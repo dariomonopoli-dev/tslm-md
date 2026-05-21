@@ -38,6 +38,10 @@ CHANNEL_DESCRIPTIONS = [
     "Ligand RMSD from the first frame after pocket alignment, per frame, in Angstroms",
     "Ligand radius of gyration per frame, in Angstroms",
     "Interface buriedness proxy: count of ligand atoms with at most two protein neighbours within 5 A",
+    "MISATO-precomputed protein-ligand interaction energy per frame, in kcal/mol",
+    "MISATO-precomputed protein-ligand minimum distance per frame, in Angstroms",
+    "MISATO-precomputed ligand RMSD per frame, in Angstroms",
+    "MISATO-precomputed buried solvent-accessible surface area per frame, in Angstroms squared",
 ]
 
 

@@ -13,7 +13,7 @@ data:
   pdbbind_index: data/pdbbind_index/index_v2020.tsv
   splits_dir: data/splits
   n_frames_out: 30
-  n_channels: 6
+  n_channels: 10
 
 training:
   batch_size: 1

@@ -1,12 +1,18 @@
-"""Featurise a MISATO MD trajectory into a [6, F_sub] tensor.
+"""Featurise a MISATO MD trajectory into a [10, F_sub] tensor.
 
-Six channels per frame, all O(n_ligand x n_pocket_atoms):
+Six geometric channels recomputed from `trajectory_coordinates`:
   ch0  min pocket-ligand distance (Å)
   ch1  mean pocket-ligand distance under 4 Å mask (Å)
   ch2  number of close (<= 4 Å) ligand-protein contacts
   ch3  ligand RMSD from frame 0 after pocket-Kabsch alignment (Å)
   ch4  ligand radius of gyration (Å)
   ch5  interface buriedness proxy: count of ligand atoms with <= 2 protein neighbours within 5 Å
+
+Four MISATO-precomputed per-frame channels (subsampled at the same indices):
+  ch6  frames_interaction_energy (kcal/mol)
+  ch7  frames_distance (Å)
+  ch8  frames_rmsd_ligand (Å)
+  ch9  frames_bSASA (Å²)
 """
 
 from __future__ import annotations
@@ -17,8 +23,14 @@ import h5py
 import numpy as np
 import torch
 
-N_CHANNELS = 6
+N_CHANNELS = 10
 F_SUB = 30
+PRECOMPUTED_CHANNELS = (
+    "frames_interaction_energy",
+    "frames_distance",
+    "frames_rmsd_ligand",
+    "frames_bSASA",
+)
 POCKET_CUTOFF_A = 6.0
 CONTACT_CUTOFF_A = 4.0
 SASA_PROXY_CUTOFF_A = 5.0
@@ -72,8 +84,19 @@ def featurize(
     pocket = protein[:, pocket_mask, :]
 
     feats = np.zeros((N_CHANNELS, T), dtype=np.float32)
+
+    # ch6-9: MISATO-precomputed per-frame scalars, subsampled at the same indices.
+    # These do not depend on the geometric pocket calculation, so fill them
+    # before the degenerate-pocket early return.
+    for offset, name in enumerate(PRECOMPUTED_CHANNELS):
+        if name in h5_group:
+            arr = h5_group[name][:]
+            if arr.shape[0] >= F_raw:
+                feats[6 + offset] = arr[indices].astype(np.float32)
+
     if pocket.shape[1] == 0:
-        # Degenerate (e.g., ligand far from any protein atom). Return zeros.
+        # Degenerate (e.g., ligand far from any protein atom). Geometric channels
+        # stay zero; precomputed channels (if available) are still populated.
         return torch.from_numpy(feats)
 
     ref_ligand = ligand[0]
