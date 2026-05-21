@@ -9,15 +9,23 @@ This is the cheapest informative experiment in the spec — run at hour 4.
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
 import argparse
 import json
-from pathlib import Path
 
 import h5py
 import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
 from scipy.stats import pearsonr, spearmanr
 from tqdm import tqdm
+
+# Import the S3 data loader
+from data.s3_data_loader import get_training_input, DEFAULT_S3_URI
 
 
 def aggregate(feats: np.ndarray) -> np.ndarray:
@@ -63,6 +71,11 @@ def main(args: argparse.Namespace) -> None:
     splits_dir = Path(args.splits_dir)
     h5p = Path(args.featurized_h5)
     tjp = Path(args.targets_json)
+    
+    # Configure S3 data input if using SageMaker
+    if args.use_s3:
+        train_data = get_training_input(args.s3_uri or DEFAULT_S3_URI)
+        print(f"Configured S3 data input: {args.s3_uri or DEFAULT_S3_URI}")
 
     print("loading train")
     X_tr, y_tr, _ = load_xy(load_split(splits_dir / "train.txt"), h5p, tjp)
@@ -105,4 +118,6 @@ if __name__ == "__main__":
     p.add_argument("--featurized-h5", default="data/featurized.h5")
     p.add_argument("--targets-json", default="data/targets.json")
     p.add_argument("--splits-dir", default="data/splits")
+    p.add_argument("--use-s3", action="store_true", help="Use S3 data input with FastFile mode")
+    p.add_argument("--s3-uri", help="S3 URI for dataset (defaults to MD.hdf5)")
     main(p.parse_args())
