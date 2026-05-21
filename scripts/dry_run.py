@@ -58,9 +58,17 @@ def main(args: argparse.Namespace) -> None:
             available = list(f.keys())[:5]
             fail(f"PDB id '{args.pdb_id}' not in {h5_path}. Available: {available}")
         g = f[resolved_id]
+        print(f"  resolved PDB id              = {resolved_id}")
+        print(f"  datasets in this group       = {list(g.keys())}")
+        if "trajectory_coordinates" not in g:
+            fail(
+                "Group has no 'trajectory_coordinates' key — wrong file. "
+                "The bundled inference_for_MD.hdf5 is for the adaptability task, "
+                "not the full MD trajectories. Use the real MD.hdf5 from Zenodo. "
+                f"Available keys: {list(g.keys())}"
+            )
         coords_shape = g["trajectory_coordinates"].shape
         mol_begin = g["molecules_begin_atom_index"][:]
-        print(f"  resolved PDB id              = {resolved_id}")
         print(f"  trajectory_coordinates.shape = {coords_shape}")
         print(f"  molecules_begin_atom_index   = {mol_begin}")
         print(f"  ligand starts at atom index  = {int(mol_begin[-1])}")
