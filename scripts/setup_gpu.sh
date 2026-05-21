@@ -49,6 +49,17 @@ pip install -e .
 echo "==> 4/5 Installing OpenTSLM"
 echo "    THIS IS THE KEY DEP-HELL CHECK — pulls open_flamingo as transitive dep."
 echo "    If this fails: stop, diagnose, do not proceed to dry_run."
+
+# The Chronos branch's pyproject pins requires-python = ">=3.12" but the code
+# itself runs on 3.11. Auto-patch on systems where Python is 3.11.x so we
+# don't hit the version wall.
+PY_MINOR=$(python -c "import sys; print(sys.version_info.minor)")
+if [ "$PY_MINOR" -lt 12 ] && [ -f third_party/OpenTSLM/pyproject.toml ]; then
+  echo "    Python is 3.${PY_MINOR}; patching OpenTSLM pyproject requires-python ->= 3.11"
+  sed -i.bak 's/requires-python = ">=3.12"/requires-python = ">=3.11"/' \
+    third_party/OpenTSLM/pyproject.toml
+fi
+
 pip install -e third_party/OpenTSLM
 echo "    OK."
 
