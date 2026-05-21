@@ -30,6 +30,11 @@ training:
   log_every_steps: 10
   early_stop_patience: 5
   grad_clip_norm: 1.0
+  # Real-time visualisation: every vis_every_steps, generate on vis_n_samples
+  # val items, parse, compute Pearson/Spearman/MAE, push scatter PNG to wandb.
+  vis_every_steps: 500
+  vis_n_samples: 20
+  vis_max_new_tokens: 50
 
 paths:
   results_dir: results/stage6_md_cot
