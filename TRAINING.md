@@ -176,19 +176,34 @@ is the bottleneck, v1b should outperform v1a:
 
 ### v1a (SageMaker g5.xlarge, in progress)
 
-| Epoch | Train loss (avg) | Val RMSE | Val Pearson R | n_parsed | Status |
-|---|---|---|---|---|---|
-| 1 | ~0.4 | **1.87** | **0.29** | 1556 / 1595 | Marginally above OLS, below MLP |
-| 2 | — | — | — | — | Pending |
-| 3 | — | — | — | — | Pending |
-| 4 | — | — | — | — | Pending |
-| 5 | — | — | — | — | Pending |
+**Val** (1595 systems, used for model selection):
 
-**Read on epoch 1:** model is NOT memorizing templates (Pearson > 0), but is
-roughly tied with the OLS-on-means baseline. The trajectory encoder hasn't
-yet pulled the prediction past what a 5-parameter linear model on channel
-averages already captures. Decision threshold for epoch 2: if val RMSE drops
-below 1.78 and Pearson > 0.35, the encoder is gaining traction.
+| Epoch | Train loss (avg) | RMSE | Pearson R | MAE | n_parsed | Status |
+|---|---|---|---|---|---|---|
+| 1 | ~0.4 | **1.87** | **0.29** | 1.49 | 1556 / 1595 (97.6%) | Marginally above OLS-val (1.89), below MLP-val (1.74) |
+| 2 | — | — | — | — | — | Pending |
+| 3 | — | — | — | — | — | Pending |
+| 4 | — | — | — | — | — | Pending |
+| 5 | — | — | — | — | — | Pending |
+
+**Test** (1612 systems, held out — never used for selection):
+
+| Epoch | RMSE | Pearson R | MAE | n_parsed | vs baselines |
+|---|---|---|---|---|---|
+| 1 | **1.78** | **0.31** | 1.44 | 1584 / 1612 (98.3%) | Tied with `ols_means` (1.78); above on Pearson (0.27 → 0.31); below `mlp_engineered` (1.68) |
+| 2 | — | — | — | — | — |
+| 3 | — | — | — | — | — |
+| 4 | — | — | — | — | — |
+| 5 | — | — | — | — | — |
+
+**Read on epoch 1:**
+- Model is NOT memorizing templates — Pearson > 0 on both splits means it's using channel information.
+- Test RMSE 1.778 exactly matches OLS-on-means baseline (1.778 to three decimals) — the model has rediscovered the linear projection but not gone beyond it yet.
+- Test Pearson 0.31 > OLS 0.27 → slightly better ranking ability than OLS, but still below MLP-engineered (0.36).
+- Test consistently better than val (RMSE 1.78 < 1.87, Pearson 0.31 > 0.29) — normal between-split variance, no overfit signal.
+- n_parsed 98%+ on both → format-following is solid.
+
+**Decision threshold for epoch 2:** if **test RMSE drops below 1.68** and **Pearson > 0.40**, the encoder is gaining traction past the simple-baseline ceiling. If both stay flat at epoch-1 levels, v1a is plateaued at OLS-equivalent and v1b's regression head becomes the better bet.
 
 ### v1b (A100 personal box, queued / running)
 
