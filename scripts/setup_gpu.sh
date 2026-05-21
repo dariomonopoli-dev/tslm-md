@@ -61,6 +61,15 @@ if [ "$PY_MINOR" -lt 12 ] && [ -f third_party/OpenTSLM/pyproject.toml ]; then
 fi
 
 pip install -e third_party/OpenTSLM
+
+# Bug in chronos branch: model.vision_encoder is wrapped in a SimpleNamespace,
+# but OpenTSLMFlamingo.__init__ calls .requires_grad_(True) on it directly.
+# The actual encoder lives at .visual. Auto-patch.
+FLAM_FILE="third_party/OpenTSLM/src/opentslm/model/llm/OpenTSLMFlamingo.py"
+if [ -f "$FLAM_FILE" ] && grep -q 'model\.vision_encoder\.requires_grad_(True)' "$FLAM_FILE"; then
+  echo "    Patching SimpleNamespace.requires_grad_ bug in OpenTSLMFlamingo.py"
+  sed -i.bak 's/model\.vision_encoder\.requires_grad_(True)/model.vision_encoder.visual.requires_grad_(True)/' "$FLAM_FILE"
+fi
 echo "    OK."
 
 echo "==> 5/5 HuggingFace login + pre-warm cache"
