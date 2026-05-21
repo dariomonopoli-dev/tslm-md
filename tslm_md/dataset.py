@@ -62,9 +62,19 @@ class MDCoTQADataset(QADataset):
         super().__init__(split, EOS_TOKEN, format_sample_str, time_series_format_function)
 
     def _load_splits(self) -> Tuple[Dataset, Dataset, Dataset]:
-        """Load train/val/test splits as HF Datasets keyed by pdb_id."""
+        """Load train/val/test splits as HF Datasets.
+
+        Case-insensitive join over splits, featurized.h5, and targets.json.
+        MISATO HDF5 + Zenodo splits use uppercase; targets.json keys are lowercase.
+        Each row carries pdb_id (lowercase canonical, for targets lookup) and
+        pdb_id_h5 (the actual case used in featurized.h5).
+        """
         with self.targets_json.open() as f:
-            targets = json.load(f)  # {pdb_id: {"answer": "...", "affinity_kcal_mol": float, "confidence": "high|medium|low"}}
+            targets = json.load(f)
+        targets_lower = {k.lower(): v for k, v in targets.items()}
+
+        with h5py.File(self.featurized_h5, "r") as f:
+            h5_keys_lower = {k.lower(): k for k in f.keys()}
 
         def _load_one(split_filename: str) -> Dataset:
             split_path = self.splits_dir / split_filename
@@ -73,11 +83,17 @@ class MDCoTQADataset(QADataset):
                     f"Split file {split_path} missing — run scripts/preprocess_features.py first."
                 )
             with split_path.open() as f:
-                ids = [line.strip() for line in f if line.strip()]
-            ids = [i for i in ids if i in targets]  # only ids we have labels for
-            if self.max_samples and len(ids) > self.max_samples:
-                ids = ids[: self.max_samples]
-            rows = [{"pdb_id": pid, **targets[pid]} for pid in ids]
+                raw_ids = [line.strip() for line in f if line.strip()]
+            rows = []
+            for pid in raw_ids:
+                key = pid.lower()
+                actual_h5_pid = h5_keys_lower.get(key)
+                target = targets_lower.get(key)
+                if actual_h5_pid is None or target is None:
+                    continue
+                rows.append({"pdb_id": key, "pdb_id_h5": actual_h5_pid, **target})
+            if self.max_samples and len(rows) > self.max_samples:
+                rows = rows[: self.max_samples]
             return Dataset.from_list(rows)
 
         train = _load_one("train.txt")
@@ -91,9 +107,9 @@ class MDCoTQADataset(QADataset):
         Returns one TextTimeSeriesPrompt per channel; order must match
         tslm_md.featurize so the encoder receives consistent label/channel pairs.
         """
-        pdb_id = row["pdb_id"]
+        h5_key = row.get("pdb_id_h5") or row["pdb_id"]
         with h5py.File(self.featurized_h5, "r") as f:
-            feats = f[pdb_id][:]  # [6, 30] float32
+            feats = f[h5_key][:]  # [6, 30] float32
         labels = channel_descriptors()
         return [
             TextTimeSeriesPrompt(label, channel.tolist())
