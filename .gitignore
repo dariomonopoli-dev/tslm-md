@@ -1,0 +1,41 @@
+# Preprocessed binary data (ships via S3, not git)
+preprocessed/
+baselines.json
+
+# Source datasets (too large, downloaded separately)
+MD.hdf5
+*.hdf5
+QM*.hdf5
+
+# Reference repos (clone separately if needed for re-preprocessing)
+misato-affinity/
+misato-dataset-master/
+
+# Python env
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# OpenTSLM upstream git history (preserved locally; not in this repo)
+OpenTSLM/.git.bak/
+
+# Separate frontend project (its own repo, not part of training pipeline)
+website/
+
+# OS / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# HF / model caches
+.cache/
+
+# Local run outputs
+runs/
+*.pt
+*.log
