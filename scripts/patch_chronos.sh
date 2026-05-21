@@ -10,16 +10,29 @@
 set -euo pipefail
 
 FLAM="third_party/OpenTSLM/src/opentslm/model/llm/OpenTSLMFlamingo.py"
+TSF="third_party/OpenTSLM/src/opentslm/model/llm/TimeSeriesFlamingoWithTrainableEncoder.py"
 PYPROJ="third_party/OpenTSLM/pyproject.toml"
 
-echo "==> patching $FLAM"
+echo "==> patching $FLAM (init)"
 if [ ! -f "$FLAM" ]; then
   echo "    ERROR: $FLAM not found. Did you clone third_party/OpenTSLM?"
   exit 1
 fi
 if grep -q 'model\.vision_encoder\.requires_grad_(True)' "$FLAM"; then
   sed -i.bak 's/model\.vision_encoder\.requires_grad_(True)/model.vision_encoder.visual.requires_grad_(True)/' "$FLAM"
-  echo "    OK — SimpleNamespace patch applied"
+  echo "    OK — init patch applied"
+else
+  echo "    already patched (or upstream changed)"
+fi
+
+echo "==> patching $TSF (forward)"
+if [ ! -f "$TSF" ]; then
+  echo "    ERROR: $TSF not found"
+  exit 1
+fi
+if grep -q 'vision_x = self\.vision_encoder(vision_x)' "$TSF"; then
+  sed -i.bak 's/vision_x = self\.vision_encoder(vision_x)/vision_x = self.vision_encoder.visual(vision_x)/' "$TSF"
+  echo "    OK — forward patch applied"
 else
   echo "    already patched (or upstream changed)"
 fi
@@ -34,4 +47,4 @@ fi
 
 echo
 echo "Verify with:"
-echo "  grep -n 'vision_encoder' $FLAM | head -3"
+echo "  grep -n 'vision_encoder' $FLAM $TSF | head -10"
