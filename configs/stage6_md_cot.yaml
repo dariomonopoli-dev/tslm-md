@@ -34,3 +34,9 @@ training:
 paths:
   results_dir: results/stage6_md_cot
   checkpoint_dir: results/stage6_md_cot/checkpoints
+
+wandb:
+  enabled: true
+  project: tslm-md
+  run_name: stage6_md_cot
+  tags: [stage6, chronos2, llama-3.2-1b, juncliu-ckpt]
