@@ -17,6 +17,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import glob
 import os
 import sys
@@ -105,16 +106,23 @@ def main(args: argparse.Namespace) -> int:
 
     model.model.train()
     losses: list[float] = []
-    print(f"overfitting for {args.steps} steps at lr={args.lr}...")
+    use_bf16 = args.precision == "bf16" and device == "cuda"
+    amp_ctx = (
+        torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+        if use_bf16 else contextlib.nullcontext()
+    )
+    print(f"overfitting for {args.steps} steps at lr={args.lr} "
+          f"precision={'bf16' if use_bf16 else 'fp32'}...")
     for step in range(args.steps):
         optim.zero_grad(set_to_none=True)
-        out = model.model(
-            vision_x=images, lang_x=input_ids,
-            attention_mask=attention_mask, labels=labels,
-        )
-        loss = getattr(out, "loss", None)
-        if loss is None:
-            loss = out[0] if isinstance(out, tuple) else out
+        with amp_ctx:
+            out = model.model(
+                vision_x=images, lang_x=input_ids,
+                attention_mask=attention_mask, labels=labels,
+            )
+            loss = getattr(out, "loss", None)
+            if loss is None:
+                loss = out[0] if isinstance(out, tuple) else out
         loss.backward()
         torch.nn.utils.clip_grad_norm_(trainable, 1.0)
         optim.step()
@@ -144,8 +152,9 @@ if __name__ == "__main__":
     p.add_argument("--config", default="configs/stage6_md_cot.yaml")
     p.add_argument("--starting-checkpoint", default=None,
                    help="path to juncliu best_model.pt (default: auto-detect)")
-    p.add_argument("--batch-size", type=int, default=4)
+    p.add_argument("--batch-size", type=int, default=1)
     p.add_argument("--steps", type=int, default=200)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--log-every", type=int, default=10)
+    p.add_argument("--precision", choices=["fp32", "bf16"], default="bf16")
     sys.exit(main(p.parse_args()))
