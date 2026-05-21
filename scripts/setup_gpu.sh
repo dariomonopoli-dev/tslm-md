@@ -9,12 +9,23 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 echo "==> 1/5 Creating Python venv (.venv)"
+# On vast.ai's PyTorch image, system PyTorch is already installed — inherit it
+# with --system-site-packages so we don't re-download ~2 GB.
+VENV_FLAGS=""
+if python3 -c "import torch" 2>/dev/null; then
+  echo "    System torch detected — venv will inherit system site-packages"
+  VENV_FLAGS="--system-site-packages"
+fi
 if [ ! -d .venv ]; then
-  python3.10 -m venv .venv 2>/dev/null || python3 -m venv .venv
+  # shellcheck disable=SC2086
+  python3.10 -m venv $VENV_FLAGS .venv 2>/dev/null || python3 -m venv $VENV_FLAGS .venv
 fi
 # shellcheck source=/dev/null
 source .venv/bin/activate
 echo "    Python: $(python --version)"
+if python -c "import torch; print(f'    torch: {torch.__version__}, cuda: {torch.cuda.is_available()}')"; then
+  :
+fi
 
 echo "==> 2/5 Cloning third_party deps (OpenTSLM + MiSaTo-dataset)"
 mkdir -p third_party
