@@ -49,14 +49,34 @@ echo "    OK."
 echo "==> 5/5 HuggingFace login + pre-warm cache"
 echo "    You will be prompted for a HF token (read scope)."
 echo "    Get one at https://huggingface.co/settings/tokens"
-if ! huggingface-cli whoami >/dev/null 2>&1; then
-  huggingface-cli login
+
+# HF Hub 1.x renamed `huggingface-cli` -> `hf`. Pick whichever is on PATH.
+HF_CLI=""
+if command -v hf >/dev/null 2>&1; then
+  HF_CLI="hf"
+elif command -v huggingface-cli >/dev/null 2>&1; then
+  HF_CLI="huggingface-cli"
+else
+  echo "    Installing huggingface_hub[cli]..."
+  pip install -U "huggingface_hub[cli]"
+  HF_CLI="hf"
+fi
+echo "    Using HF CLI: $HF_CLI"
+
+if [ "$HF_CLI" = "hf" ]; then
+  if ! hf auth whoami >/dev/null 2>&1; then
+    hf auth login
+  fi
+else
+  if ! huggingface-cli whoami >/dev/null 2>&1; then
+    huggingface-cli login
+  fi
 fi
 
 echo
 echo "==> Pre-warming HF cache (Llama-3.2-1B + OpenTSLM stage-5 checkpoint)"
-huggingface-cli download meta-llama/Llama-3.2-1B
-huggingface-cli download OpenTSLM/llama-3.2-1b-ecg-flamingo
+$HF_CLI download meta-llama/Llama-3.2-1B
+$HF_CLI download OpenTSLM/llama-3.2-1b-ecg-flamingo
 
 echo
 echo "============================================================"
