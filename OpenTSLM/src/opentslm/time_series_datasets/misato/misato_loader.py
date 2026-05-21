@@ -1,17 +1,24 @@
 """Disk loader for MISATO MD preprocessed artifacts.
 
 Reads features_{split}.npz + samples_{split}.jsonl + norm_stats.json from
-$OPENTSLM_MISATO_DATA (defaults to ./preprocessed) and returns three HF
-Dataset objects ready for `QADataset._load_splits`.
+$OPENTSLM_MISATO_DATA (defaults to ./preprocessed) and returns three plain
+`list[dict]` splits ready for `QADataset._load_splits`.
+
+**Important: we deliberately return plain lists, not HF `Dataset` objects.**
+`Dataset.from_list` triggers a PyArrow conversion that for nested float
+lists (our 4x100 channels) can balloon 10-50x during construction, OOMing
+the SageMaker g5.xlarge (16 GB RAM). `QADataset.__init__` only does
+`len(...)` and `map(format_fn, ...)` on the result, so a plain list is
+a drop-in substitute that keeps peak RAM well under 1 GB.
 
 Each row contains:
-  pdb_id: str
-  pK: float
-  rationale: str
+  pdb_id:        str
+  pK:            float
+  rationale:     str
   dissociated, unstable, multi_ligand: bool
-  channels_norm: list[list[float]]   # (4, 100), train-mean/std z-scored
-  channel_means: list[float]         # (4,) post-clip per-sample means
-  channel_stds: list[float]          # (4,) post-clip per-sample stds
+  channels_norm: np.ndarray (4, 100) float32  -- train-mean/std z-scored
+  channel_means: list[float] length 4         -- per-system post-clip means
+  channel_stds:  list[float] length 4
 
 Channel order is fixed: [rmsd_ligand, interaction_energy, distance, bSASA].
 """
@@ -20,10 +27,9 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Tuple
+from typing import List, Tuple
 
 import numpy as np
-from datasets import Dataset
 
 DEFAULT_DATA_DIR = "preprocessed"
 ENV_VAR = "OPENTSLM_MISATO_DATA"
@@ -33,7 +39,7 @@ def _data_dir() -> Path:
     return Path(os.environ.get(ENV_VAR, DEFAULT_DATA_DIR))
 
 
-def _load_split(data_dir: Path, split: str, train_mean: np.ndarray, train_std: np.ndarray) -> Dataset:
+def _load_split(data_dir: Path, split: str, train_mean: np.ndarray, train_std: np.ndarray) -> List[dict]:
     npz_path = data_dir / f"features_{split}.npz"
     jsonl_path = data_dir / f"samples_{split}.jsonl"
     if not npz_path.exists() or not jsonl_path.exists():
@@ -43,13 +49,13 @@ def _load_split(data_dir: Path, split: str, train_mean: np.ndarray, train_std: n
         )
 
     data = np.load(npz_path, allow_pickle=True)
-    channels = data["channels"].astype(np.float32)  # (N, 100, 4)
-    sample_means = channels.mean(axis=1)            # (N, 4) — per-system, post-clip
-    sample_stds = channels.std(axis=1) + 1e-6       # (N, 4)
+    channels = data["channels"].astype(np.float32)            # (N, 100, 4)
+    sample_means = channels.mean(axis=1)                      # (N, 4) post-clip per-system
+    sample_stds = channels.std(axis=1) + 1e-6                 # (N, 4)
     channels_norm = (channels - train_mean[None, None, :]) / train_std[None, None, :]
-    channels_norm_per_channel = np.transpose(channels_norm, (0, 2, 1))  # (N, 4, 100)
+    channels_norm = np.transpose(channels_norm, (0, 2, 1)).astype(np.float32, copy=False)  # (N, 4, 100)
 
-    samples: list[dict] = []
+    samples: List[dict] = []
     with jsonl_path.open() as f:
         for line in f:
             samples.append(json.loads(line))
@@ -59,7 +65,9 @@ def _load_split(data_dir: Path, split: str, train_mean: np.ndarray, train_std: n
             f"jsonl has {len(samples)}."
         )
 
-    rows: list[dict] = []
+    rows: List[dict] = []
+    means_list = sample_means.tolist()
+    stds_list = sample_stds.tolist()
     for i, s in enumerate(samples):
         rows.append({
             "pdb_id": s["pdb_id"],
@@ -68,14 +76,14 @@ def _load_split(data_dir: Path, split: str, train_mean: np.ndarray, train_std: n
             "dissociated": bool(s["dissociated"]),
             "unstable": bool(s["unstable"]),
             "multi_ligand": bool(s["multi_ligand"]),
-            "channels_norm": channels_norm_per_channel[i].tolist(),
-            "channel_means": sample_means[i].tolist(),
-            "channel_stds": sample_stds[i].tolist(),
+            "channels_norm": channels_norm[i],   # numpy (4, 100), zero-copy slice
+            "channel_means": means_list[i],
+            "channel_stds": stds_list[i],
         })
-    return Dataset.from_list(rows)
+    return rows
 
 
-def load_misato_splits() -> Tuple[Dataset, Dataset, Dataset]:
+def load_misato_splits() -> Tuple[List[dict], List[dict], List[dict]]:
     data_dir = _data_dir()
     norm = json.loads((data_dir / "norm_stats.json").read_text())
     train_mean = np.array(norm["train_mean"], dtype=np.float32)
