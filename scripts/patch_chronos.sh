@@ -26,6 +26,33 @@ else
   echo "    already patched (or upstream changed)"
 fi
 
+echo "==> patching $FLAM (freeze Chronos backbone — only train projection/norm)"
+# Default OpenTSLMFlamingo unfreezes the ENTIRE Chronos backbone (~500M params)
+# via `model.vision_encoder.visual.requires_grad_(True)`. Replace with a more
+# targeted unfreeze: only the projection + output_norm layers (~100K params).
+# Brings trainable params from ~837M -> ~150M without losing learnable bridge.
+if grep -q '^\s*model\.vision_encoder\.visual\.requires_grad_(True)$' "$FLAM"; then
+  python - <<'PY'
+p = "third_party/OpenTSLM/src/opentslm/model/llm/OpenTSLMFlamingo.py"
+with open(p) as f:
+    src = f.read()
+old = "        model.vision_encoder.visual.requires_grad_(True)"
+new = (
+    "        # backbone-freeze patch: keep Chronos backbone frozen,\n"
+    "        # only train the projection + norm bridging layers.\n"
+    "        for _name, _param in model.vision_encoder.visual.named_parameters():\n"
+    "            if 'projection' in _name or 'output_norm' in _name:\n"
+    "                _param.requires_grad_(True)"
+)
+src = src.replace(old, new, 1)
+with open(p, "w") as f:
+    f.write(src)
+print("    OK — backbone-freeze patch applied")
+PY
+else
+  echo "    already patched or upstream changed"
+fi
+
 echo "==> patching $FLAM (move perceiver + gated_cross_attn to device)"
 if ! grep -q '# perceiver-device patch applied' "$FLAM"; then
   python - <<'PY'
