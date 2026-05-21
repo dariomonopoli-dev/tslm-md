@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One-shot environment setup on the A30 GPU machine.
+# One-shot environment setup on any single-GPU CUDA box.
+# Tested on: vast.ai A100 80GB, vast.ai H100 80GB, local A30 24GB.
 # Idempotent — safe to re-run.
 
 set -euo pipefail

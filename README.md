@@ -37,12 +37,14 @@ PDB id → MISATO HDF5 → featurize() → [6 features × 30 frames] tensor
 
 The trained adapter (~50-200 M params) is the artifact. The agent loop wraps it with a verifier that abstains when prediction disagrees with independent physics — mirroring the SOC-agent prior-winner precedent.
 
-## Quick start (on the A30 GPU machine)
+## Quick start
+
+Works on any single-GPU CUDA box. Tested target: **vast.ai A100 80GB or H100 80GB** (~$1-2/hr, recommended for VRAM headroom). Also works on a local A30 24GB.
 
 ```bash
 git clone git@github.com:dariomonopoli-dev/tslm-md.git
 cd tslm-md
-bash scripts/setup_a30.sh      # venv + clone OpenTSLM/MISATO + pip install + HF login + pre-warm cache
+bash scripts/setup_gpu.sh      # venv + clone OpenTSLM/MISATO + pip install + HF login + pre-warm cache
 python scripts/dry_run.py      # the 30-min go/no-go test
 ```
 
@@ -58,11 +60,30 @@ If it fails, debug from the printed error (single most useful pre-build signal �
 
 The single biggest critical-path saver. Without this, the 133 GiB MISATO download eats hours 0-6 of the official timeline.
 
+**Recommended (on the same vast.ai/cloud GPU box):**
+
+```bash
+bash scripts/download_misato_direct.sh
+```
+
+Datacenter networks pull from Zenodo at ~50-200 MB/s with `aria2c -x 8`. Total wall time ~10-60 min. Optionally `aws s3 sync` afterwards for durability.
+
+**Fallback (only if your download endpoint is home Wi-Fi):**
+
 ```bash
 bash scripts/download_misato_via_ec2.sh
 ```
 
-This spins up a `c6i.xlarge` EC2 instance, downloads MISATO from Zenodo on AWS's gigabit pipe, pushes to S3, prints the terminate command. Total cost ~$0.30-$0.50, total wall time ~30-60 min unattended.
+Spins up a `c6i.xlarge` EC2 instance, downloads MISATO from Zenodo on AWS's pipe, pushes to S3. Total cost ~$0.30-$0.50.
+
+## AWS surface
+
+| Service | Role | When |
+|---|---|---|
+| **S3** (us-east-1 or us-west-2) | Stores MISATO + checkpoints | Pre-clock + always |
+| **Bedrock** (Claude Haiku 4.5) | Second-opinion summariser in demo | Hour 20+ |
+| **SageMaker Endpoint** | Serves trained checkpoint to Streamlit demo | Hour 18+ (optional) |
+| **SageMaker Training Jobs** | Productionisation path | Pitch slide |
 
 ## Documents
 
@@ -83,12 +104,14 @@ tslm_md/                package (installable via pip install -e .)
   verifier.py           physics-based independent verifier     stub
   eval.py               Pearson r + abstention metrics         stub
   train_stage6.py       plug into CurriculumTrainer            stub
-  bedrock_summarizer.py optional Claude second-opinion         stub (NotImplementedError)
+  bedrock_summarizer.py optional Claude second-opinion         REAL (graceful fallback)
 
 scripts/
   dry_run.py                       30-min go/no-go             FULL
-  setup_a30.sh                     one-shot env setup          FULL
-  download_misato_via_ec2.sh       pre-clock data prefetch     FULL
+  setup_gpu.sh                     one-shot env setup          FULL
+  download_misato_direct.sh        direct Zenodo download      FULL (recommended)
+  download_misato_via_ec2.sh       EC2→S3 fallback prefetch    FULL
+  deploy_sagemaker_endpoint.sh     deploy trained model        stub
   preprocess_features.py           batch featurise → h5        stub
   build_training_targets.py        PDBbind → "Answer: X..."    stub
   train_gbm_baseline.py            R1 disproof experiment      stub

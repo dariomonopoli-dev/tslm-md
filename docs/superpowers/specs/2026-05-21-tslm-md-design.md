@@ -264,15 +264,20 @@ tslm-md/
 | **18-22** | Streamlit demo | Paste PDB id → stream rationale → show predicted + independent values → verdict badge | Live demo works on 3 unseen PDB ids |
 | **22-24** | Pitch deck + dry-run | Slides: architecture, agent loop, eval table (Pearson + abstention rate + 1 CONFIRMED + 1 INCONCLUSIVE case study), AWS diagram | End-to-end practice run ≤ 5 min |
 
-### AWS surface
+### AWS surface (revised after Workshop Studio access confirmed)
+
+The team has **AWS Workshop Studio access** with Bedrock + SageMaker + S3 enabled in us-east-1 and us-west-2. This upgrades the AWS story from "data store only" to "real engineering surface."
 
 | Service | Role | Critical path? |
 |---|---|---|
-| **S3** | Holds raw MISATO + checkpoints + featurized.h5 | Yes (data source) |
-| **EC2** (one-time) | The 30-min download instance, torn down after upload | No (pre-clock only) |
-| **SageMaker** | Spot-train fallback if A30 OOMs unexpectedly | No (contingency) |
-| **Bedrock** | Optional second-opinion summarization at demo time | No (TODO stub) |
-| **AgentCore** | Documented production path; CloudFormation in the pitch deck | No (presentation only) |
+| **S3** | Holds raw MISATO + checkpoints + featurized.h5 | Yes |
+| **Bedrock (Claude Haiku 4.5)** | Second-opinion summariser polishes the agent's structured Report into customer-language at demo time | Yes (Add #1, hour 20+) |
+| **SageMaker Endpoint** | Serves the trained checkpoint to the Streamlit demo over HTTP — demonstrates "this is how a customer would consume the model" | Optional (Add #2, hour 18+) |
+| **SageMaker Training Jobs** | Productionisation path — slide-only in the pitch deck | No (pitch only) |
+| **EC2 (one-time)** | Only as fallback if the cloud GPU box is somehow on a slow pipe — otherwise skipped | No (vast.ai direct preferred) |
+| **AgentCore** | Documented production-orchestration path in pitch | No (presentation only) |
+
+**Compute decision:** vast.ai A100 80GB or H100 80GB rented for the 24-hour sprint (~$30-50 total). Faster iteration than SageMaker training jobs for a clock-bound build. Pitch framing: "we picked vast.ai for the sprint, production runs on SageMaker."
 
 ---
 
