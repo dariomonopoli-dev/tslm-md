@@ -10,24 +10,35 @@ MISATO test split, MISATO Supp Data 2, or any custom benchmark — provided
 each PDB id appears in our featurized.h5.
 
 Usage:
-    # MDbind PDBbind v2016 core (after populating data/benchmarks/pdbbind_v2016_core.txt)
-    python scripts/eval_benchmark.py \\
-        --checkpoint results/stage6_md_cot/checkpoints/final.pt \\
-        --benchmark-ids data/benchmarks/pdbbind_v2016_core.txt \\
-        --label-source targets
-
-    # MISATO official test split (uses targets.json for ground truth)
+    # HEADLINE: MISATO official test split (1,612 ids, no train overlap).
+    # This is the only fully fair external comparison we can run — directly
+    # comparable to the MISATO paper's Spearman ρ ≈ 0.64 (same test split).
     python scripts/eval_benchmark.py \\
         --checkpoint results/stage6_md_cot/checkpoints/final.pt \\
         --benchmark-ids data/splits/test.txt \\
-        --label-source targets
+        --out-csv results/eval_test_split.csv
 
-    # Without fine-tune — base juncliu checkpoint as baseline
+    # Quick mid-training read (cap to 500 ids ~= 10–15 min on an A30):
     python scripts/eval_benchmark.py \\
-        --checkpoint ~/.cache/.../best_model.pt \\
+        --checkpoint results/stage6_md_cot/checkpoints/step_20000.pt \\
+        --benchmark-ids data/splits/test.txt \\
+        --max-samples 500
+
+    # Cold baseline — juncliu checkpoint with no MD fine-tune.
+    python scripts/eval_benchmark.py \\
+        --checkpoint ~/.cache/huggingface/hub/models--juncliu--llama-3.2-1b-ecg-flamingo-epoch-35/snapshots/cfcdf8f7141b729ae50da4e1ef4e3bdc2b638674/best_model.pt \\
         --benchmark-ids data/splits/val.txt
 
-Reported numbers can go straight into the pitch slide.
+    # CAUTION: PDBbind v2016 core (CASF-2016) — DO NOT cite as a fair benchmark.
+    # 266 / 285 of these ids are in our MISATO train split (93% contamination).
+    # The remaining 19 are not in featurized.h5, so this would evaluate zero
+    # held-out items. Listed only for completeness / regression-testing.
+    python scripts/eval_benchmark.py \\
+        --checkpoint results/stage6_md_cot/checkpoints/final.pt \\
+        --benchmark-ids data/benchmarks/pdbbind_v2016_core.txt
+
+Reported numbers can go straight into the pitch slide — provided you also
+quote which split they were measured on (see the context block at the end).
 """
 
 from __future__ import annotations
@@ -184,7 +195,7 @@ def main(args: argparse.Namespace) -> int:
         featurized_ids = [pid for pid in benchmark_ids if pid.lower() in h5_keys_lower]
         unfeaturised = len(benchmark_ids) - len(featurized_ids)
         print(f"after intersecting with featurized.h5: n={len(featurized_ids)} "
-              f"({unfeaturised} ids skipped — not featurised in our 2000-subset)")
+              f"({unfeaturised} ids skipped — not present in featurized.h5)")
         ids_to_eval = featurized_ids
         if args.max_samples:
             ids_to_eval = ids_to_eval[: args.max_samples]
@@ -257,11 +268,21 @@ def main(args: argparse.Namespace) -> int:
                 w.writerow(r)
         print(f"\nper-sample predictions written to {out_path}")
 
-    print("\nContext (published numbers for comparison):")
-    print("  MISATO paper 3D-CNN + QM:  Spearman ≈ 0.64")
-    print("  MDbind Videonucy:          Pearson  ≈ 0.84   (PDBbind v2016 core, MD)")
-    print("  MDbind Timenucy:           Pearson  ≈ 0.78")
-    print("  Pafnucy (static baseline): Pearson  ≈ 0.75")
+    print("\nContext (published numbers for comparison — split matters!):")
+    print(f"  Trivial predict-mean baseline on the SAME split:")
+    print(f"    MAE = {float(np.mean(np.abs(t - t.mean()))):.3f} kcal/mol   "
+          f"RMSE = {float(np.sqrt(np.mean((t - t.mean())**2))):.3f} kcal/mol   "
+          f"(Pearson r = 0 by construction)")
+    print("")
+    print("  MISATO paper 3D-CNN + QM:  Spearman ρ ≈ 0.64   "
+          "[MISATO test_MD split — directly comparable to --benchmark-ids data/splits/test.txt]")
+    print("  MDbind Videonucy:          Pearson  r ≈ 0.84   "
+          "[CASF-2016 / PDBbind v2016 core — NOT comparable here: 93% of those ids are in our train split]")
+    print("  MDbind Timenucy:           Pearson  r ≈ 0.78   [same caveat as Videonucy]")
+    print("  Pafnucy (static baseline): Pearson  r ≈ 0.75   [same caveat as Videonucy]")
+    print("")
+    print("  Note: Pearson/Spearman are scale-invariant — comparable across pK vs kcal/mol.")
+    print("        MAE in pK ≈ MAE_kcal/mol / 1.3642  (e.g. 1.36 kcal/mol ≈ 1.00 pK).")
     return 0
 
 

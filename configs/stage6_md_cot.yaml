@@ -16,6 +16,9 @@ data:
   targets_json: data/targets.json
   feature_stats_json: data/feature_stats.json
   splits_dir: data/splits
+  # Raw MISATO MD.hdf5 — used only at vis time to render frame-0 PDB structures
+  # for the top-N best/worst predicted complexes into wandb.Molecule.
+  misato_h5: data/misato/MD.hdf5
   n_frames_out: 30
   n_channels: 10
 
@@ -28,17 +31,17 @@ training:
   lr: 1.0e-4
   weight_decay: 0.01
   warmup_frac: 0.05            # 5% linear warmup, then cosine decay to 0
-  # Forward-pass budget. With the new 10-channel preprocess the train split
-  # is ~13,765 samples, so 16,000 forward passes ≈ 1.16 epochs. Bump this
-  # (~138,000) if you want ~10 epochs over the full preprocessed set.
-  max_steps: 16000
-  ckpt_every_steps: 4000       # 4 checkpoints + final.pt — ~5 x 7GB = 35GB disk
-  eval_every_steps: 500        # cheap val-loss probe, 32 probes total
+  # ~10 epochs over the 13,758-sample train split at batch_size=1.
+  # 138,000 forward passes / 16 grad_accum = 8,625 optimiser steps.
+  # At ~5.4 sps this is ~7 hours wall-clock on an A30.
+  max_steps: 138000
+  ckpt_every_steps: 20000      # 7 checkpoints (~7GB each) -> ~50GB disk
+  eval_every_steps: 1000       # ~138 cheap val-loss probes
   log_every_steps: 20          # log line cadence
   grad_clip_norm: 1.0
   # Real-time visualisation: every vis_every_steps, generate on vis_n_samples
   # val items, parse, compute Pearson/Spearman/MAE, push scatter PNG to wandb.
-  vis_every_steps: 1000        # 16 scatter plots over training — "watch it converge"
+  vis_every_steps: 5000        # ~28 scatter plots over training
   vis_n_samples: 20
   vis_max_new_tokens: 50
 

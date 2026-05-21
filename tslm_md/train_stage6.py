@@ -41,6 +41,52 @@ from tslm_md.prompts import build_prompts, channel_descriptors
 
 _CONF_COLOR = {"high": "tab:green", "medium": "tab:orange", "low": "tab:red", None: "tab:grey"}
 
+# Atomic-number -> element symbol. Covers everything actually present in MISATO
+# complexes (protein heavy atoms + typical ligand chemistry + a few cofactor metals).
+_ELEMENT_BY_Z = {
+    1: "H", 5: "B", 6: "C", 7: "N", 8: "O", 9: "F", 11: "Na", 12: "Mg",
+    13: "Al", 14: "Si", 15: "P", 16: "S", 17: "Cl", 19: "K", 20: "Ca",
+    25: "Mn", 26: "Fe", 27: "Co", 28: "Ni", 29: "Cu", 30: "Zn",
+    33: "As", 34: "Se", 35: "Br", 42: "Mo", 47: "Ag", 48: "Cd", 53: "I",
+}
+
+
+def _misato_frame0_to_pdb_string(misato_h5_path: Path, pdb_id_h5: str) -> str | None:
+    """Render the first MD frame of one MISATO complex as a minimal PDB string.
+
+    Protein atoms get chain A / residue ALA, ligand atoms (everything from
+    molecules_begin_atom_index[-1] onward) get chain B / residue LIG. Element
+    symbols come from atoms_number (actual atomic number; atoms_element is a
+    MISATO-specific 1-7 enum and is NOT the atomic number). Bonds are inferred
+    by 3dmol.js from distance, which is good enough for visual sanity checks.
+    """
+    try:
+        with h5py.File(misato_h5_path, "r") as h5:
+            if pdb_id_h5 not in h5:
+                return None
+            g = h5[pdb_id_h5]
+            coords = g["trajectory_coordinates"][0]  # (N, 3) Å
+            elements = g["atoms_number"][:]  # atomic numbers
+            ligand_start = int(g["molecules_begin_atom_index"][-1])
+    except Exception:
+        return None
+    lines: list[str] = []
+    for i, (xyz, z) in enumerate(zip(coords, elements)):
+        sym = _ELEMENT_BY_Z.get(int(z), "X")
+        is_ligand = i >= ligand_start
+        record = "HETATM" if is_ligand else "ATOM  "
+        chain = "B" if is_ligand else "A"
+        resname = "LIG" if is_ligand else "ALA"
+        atom_name = sym if len(sym) > 1 else f" {sym}"  # PDB centers single-letter element
+        serial = (i + 1) % 100000  # wrap large complexes; 3dmol.js doesn't care
+        resid = 1 if is_ligand else min((i // 50) + 1, 9999)
+        lines.append(
+            f"{record}{serial:5d} {atom_name:<4s} {resname:>3s} {chain}{resid:4d}    "
+            f"{xyz[0]:8.3f}{xyz[1]:8.3f}{xyz[2]:8.3f}  1.00  0.00          {sym:>2s}"
+        )
+    lines.append("END")
+    return "\n".join(lines)
+
 
 def _load_val_ids(cfg: dict) -> list[tuple[str, str, float]]:
     """Load (pdb_id, pdb_id_h5, truth) tuples for val — same case-insensitive
@@ -89,12 +135,19 @@ def _vis_predictions_to_wandb(
     step: int,
     n_samples: int,
     max_new_tokens: int,
+    misato_h5: Path | None = None,
+    n_molecule_samples: int = 3,
 ) -> None:
-    """Run generate on a fixed subset of val and log scatter + metrics to wandb."""
+    """Run generate on a fixed subset of val and log scatter + metrics to wandb.
+
+    If misato_h5 is provided, also renders the top-n_molecule_samples best- and
+    worst-predicted complexes as 3D structures via wandb.Molecule.
+    """
     model.model.eval()
     truths: list[float] = []
     preds: list[float] = []
     confs: list[str | None] = []
+    parsed_pids: list[tuple[str, str]] = []  # (pid, h5_key) parallel to truths/preds
     n_total = min(n_samples, len(val_ids))
     n_parsed = 0
     with h5py.File(featurized_h5, "r") as h5:
@@ -118,6 +171,7 @@ def _vis_predictions_to_wandb(
                     truths.append(truth)
                     preds.append(aff)
                     confs.append(conf)
+                    parsed_pids.append((pid, h5_key))
                     n_parsed += 1
             except Exception:
                 continue
@@ -161,8 +215,41 @@ def _vis_predictions_to_wandb(
             import wandb
             payload["val/scatter"] = wandb.Image(fig)
         except ImportError:
-            pass
+            wandb = None
         plt.close(fig)
+
+        if wandb is not None and misato_h5 is not None and n_molecule_samples > 0:
+            errors = np.abs(p - t)
+            order = np.argsort(errors)
+            best_idx = order[:n_molecule_samples].tolist()
+            worst_idx = order[-n_molecule_samples:][::-1].tolist()
+            import tempfile
+            tmp = Path(tempfile.mkdtemp(prefix=f"vis_step{step}_"))
+
+            def _log_molecules(label: str, indices: list[int]) -> None:
+                mols = []
+                captions = []
+                for k in indices:
+                    pid, h5_key = parsed_pids[k]
+                    pdb_str = _misato_frame0_to_pdb_string(misato_h5, h5_key)
+                    if pdb_str is None:
+                        continue
+                    pdb_path = tmp / f"{label}_{pid}.pdb"
+                    pdb_path.write_text(pdb_str)
+                    try:
+                        mols.append(wandb.Molecule(str(pdb_path)))
+                    except Exception:
+                        continue
+                    captions.append(
+                        f"{pid}  truth={t[k]:.2f}  pred={p[k]:.2f}  "
+                        f"err={float(p[k]-t[k]):+.2f} kcal/mol"
+                    )
+                if mols:
+                    payload[f"val/molecules_{label}"] = mols
+                    payload[f"val/molecules_{label}_captions"] = "\n".join(captions)
+
+            _log_molecules("best", best_idx)
+            _log_molecules("worst", worst_idx)
 
     wb.log(payload)
 
@@ -324,6 +411,12 @@ def main(args: argparse.Namespace) -> None:
     vis_every = int(cfg["training"].get("vis_every_steps", 0))
     vis_n_samples = int(cfg["training"].get("vis_n_samples", 20))
     vis_max_new_tokens = int(cfg["training"].get("vis_max_new_tokens", 50))
+    vis_n_molecule_samples = int(cfg["training"].get("vis_n_molecule_samples", 3))
+    misato_h5_path = cfg["data"].get("misato_h5")
+    misato_h5_path = Path(misato_h5_path) if misato_h5_path else None
+    if vis_every > 0 and misato_h5_path is not None and not misato_h5_path.exists():
+        print(f"WARNING: misato_h5 not found at {misato_h5_path} — 3D molecule logging disabled")
+        misato_h5_path = None
     precision = cfg["training"].get("precision", "bf16")
     use_bf16 = precision == "bf16" and device == "cuda"
     def _autocast_ctx():
@@ -402,6 +495,8 @@ def main(args: argparse.Namespace) -> None:
                     Path(cfg["data"]["featurized_h5"]),
                     feature_stats_mean, feature_stats_std,
                     _autocast_ctx, wb, step, vis_n_samples, vis_max_new_tokens,
+                    misato_h5=misato_h5_path,
+                    n_molecule_samples=vis_n_molecule_samples,
                 )
                 print(f"  [vis] step={step}  scatter+metrics logged ({time.time()-t0:.1f}s)")
 
