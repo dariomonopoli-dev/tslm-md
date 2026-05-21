@@ -3,12 +3,17 @@
 #
 # SPDX-License-Identifier: MIT
 import torch
-from typing import Optional, Union
+from typing import Optional, Union, TYPE_CHECKING
 from enum import Enum
 from huggingface_hub import hf_hub_download
 
 from .OpenTSLMSP import OpenTSLMSP
-from .OpenTSLMFlamingo import OpenTSLMFlamingo
+
+if TYPE_CHECKING:
+    # Type-only import; runtime import is deferred to avoid pulling in
+    # open_flamingo (and its torchvision/open_clip chain) on environments
+    # where it isn't installable. SP-only users never hit the Flamingo path.
+    from .OpenTSLMFlamingo import OpenTSLMFlamingo
 
 
 class ModelType(Enum):
@@ -50,7 +55,7 @@ class OpenTSLM:
         device: Optional[str] = None,
         cache_dir: Optional[str] = None,
         enable_lora: Optional[bool] = False,
-    ) -> Union[OpenTSLMSP, OpenTSLMFlamingo]:
+    ) -> Union[OpenTSLMSP, "OpenTSLMFlamingo"]:
         """
         Load a pretrained model from Hugging Face Hub.
 
@@ -85,7 +90,10 @@ class OpenTSLM:
             if enable_lora:
                 model.enable_lora()
         elif model_type == ModelType.FLAMINGO:
-            # OpenTSLMFlamingo with fixed parameters from curriculum learning
+            # Defer the OpenTSLMFlamingo import: it pulls open_flamingo /
+            # open_clip / torchvision, which can fail at import time on
+            # environments with version mismatches (e.g. SageMaker Studio).
+            from .OpenTSLMFlamingo import OpenTSLMFlamingo
             model = OpenTSLMFlamingo(
                 device=device,
                 llm_id=base_llm_id,
