@@ -92,10 +92,13 @@ else
   echo "    already patched"
 fi
 
-echo "==> patching $FLAM (drop eos_token_id from Flamingo.generate)"
-if grep -q '^\s*eos_token_id=' "$FLAM"; then
-  sed -i.bak '/^\s*eos_token_id=/d' "$FLAM"
-  echo "    OK — eos_token_id kwarg removed"
+echo "==> patching $FLAM (drop *_token_id from Flamingo.generate)"
+# open_flamingo's older Flamingo.generate() doesn't accept HuggingFace's
+# standard generation kwargs like eos_token_id, pad_token_id, bos_token_id.
+# Strip them all from the OpenTSLMFlamingo.generate call.
+if grep -qE '^\s*(eos|pad|bos)_token_id=' "$FLAM"; then
+  sed -i.bak -E '/^\s*(eos|pad|bos)_token_id=/d' "$FLAM"
+  echo "    OK — *_token_id kwargs removed"
 else
   echo "    already patched"
 fi
