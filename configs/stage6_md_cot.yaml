@@ -8,7 +8,10 @@ model:
   # path is hardcoded in scripts/launch_train.sh and passed via
   # --starting-checkpoint on the CLI.
   cross_attn_every_n_layers: 1
-  freeze_lm_embeddings: false
+  # true: forces gradient through gated cross-attn (the only writable bridge to
+  # the time-series) instead of through 262M unfrozen embeddings — without this
+  # the model collapses to a constant answer that minimizes token CE.
+  freeze_lm_embeddings: true
   encoder_type: chronos2
 
 data:
