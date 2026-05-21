@@ -23,11 +23,11 @@ from pathlib import Path
 from typing import Literal, Tuple
 
 import h5py
-import torch
 from datasets import Dataset
 
 # OpenTSLM is installed via pip install -e third_party/OpenTSLM
 from opentslm.time_series_datasets.QADataset import QADataset
+from opentslm.prompt.text_time_series_prompt import TextTimeSeriesPrompt
 
 from tslm_md.prompts import build_prompts, channel_descriptors
 
@@ -85,19 +85,20 @@ class MDCoTQADataset(QADataset):
         test = _load_one("test.txt")
         return train, val, test
 
-    # OpenTSLM QADataset reads time_series from a key on the row dict. We
-    # override the per-row generators to inject our featurized tensor + prompts.
+    def _get_text_time_series_prompt_list(self, row) -> list[TextTimeSeriesPrompt]:
+        """Pair each channel's 30-frame trajectory with its descriptive label.
 
-    def _get_time_series(self, row) -> torch.Tensor:
-        """Read the [6, 30] feature tensor for this PDB id from featurized.h5."""
+        Returns one TextTimeSeriesPrompt per channel; order must match
+        tslm_md.featurize so the encoder receives consistent label/channel pairs.
+        """
         pdb_id = row["pdb_id"]
         with h5py.File(self.featurized_h5, "r") as f:
-            return torch.from_numpy(f[pdb_id][:])  # [6, 30] float32
-
-    def _get_time_series_text(self, row) -> list[str]:
-        # ONE descriptor per channel — pairs with each Chronos-encoded chunk.
-        # Order MUST match the channel order in tslm_md.featurize.
-        return channel_descriptors()
+            feats = f[pdb_id][:]  # [6, 30] float32
+        labels = channel_descriptors()
+        return [
+            TextTimeSeriesPrompt(label, channel.tolist())
+            for label, channel in zip(labels, feats)
+        ]
 
     def _get_pre_prompt(self, row) -> str:
         return build_prompts(row["pdb_id"])[0]
