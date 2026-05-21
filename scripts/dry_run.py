@@ -70,7 +70,7 @@ def main(args: argparse.Namespace) -> None:
     # -------- STEP 2
     step(2, f"Featurise trajectory → [{N_CHANNELS}, {F_SUB}]")
     with h5py.File(h5_path, "r") as f:
-        feats = featurize(f[args.pdb_id])
+        feats = featurize(f[resolved_id])
     print(f"  features.shape = {tuple(feats.shape)}")
     print(f"  per-channel mean = {[round(x, 3) for x in feats.mean(dim=1).tolist()]}")
     print(f"  per-channel std  = {[round(x, 3) for x in feats.std(dim=1).tolist()]}")
