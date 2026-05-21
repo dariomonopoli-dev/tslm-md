@@ -23,12 +23,14 @@ from pathlib import Path
 from typing import Literal, Tuple
 
 import h5py
+import torch
 from datasets import Dataset
 
 # OpenTSLM is installed via pip install -e third_party/OpenTSLM
 from opentslm.time_series_datasets.QADataset import QADataset
 from opentslm.prompt.text_time_series_prompt import TextTimeSeriesPrompt
 
+from tslm_md.featurize import normalise
 from tslm_md.prompts import build_prompts, channel_descriptors
 
 
@@ -42,6 +44,7 @@ class MDCoTQADataset(QADataset):
         featurized_h5: str | Path = "data/featurized.h5",
         targets_json: str | Path = "data/targets.json",
         splits_dir: str | Path = "data/splits",
+        feature_stats_json: str | Path | None = "data/feature_stats.json",
         format_sample_str: bool = False,
         time_series_format_function=None,
         max_samples: int | None = None,
@@ -50,6 +53,18 @@ class MDCoTQADataset(QADataset):
         self.targets_json = Path(targets_json)
         self.splits_dir = Path(splits_dir)
         self.max_samples = max_samples
+
+        # Per-channel z-score stats. Must match the val-vis path in train_stage6.py,
+        # so the model sees the same scale at training and at generation.
+        self._feat_mean: torch.Tensor | None = None
+        self._feat_std: torch.Tensor | None = None
+        if feature_stats_json is not None:
+            stats_path = Path(feature_stats_json)
+            if stats_path.exists():
+                with stats_path.open() as f:
+                    fs = json.load(f)
+                self._feat_mean = torch.tensor(fs["mean"]).reshape(-1, 1).float()
+                self._feat_std = torch.tensor(fs["std"]).reshape(-1, 1).float()
 
         # OpenTSLM uses "validation" externally and "val" internally in some places —
         # accept the OpenTSLM naming, translate to our split-file name.
@@ -109,7 +124,8 @@ class MDCoTQADataset(QADataset):
         """
         h5_key = row.get("pdb_id_h5") or row["pdb_id"]
         with h5py.File(self.featurized_h5, "r") as f:
-            feats = f[h5_key][:]  # [6, 30] float32
+            feats = torch.from_numpy(f[h5_key][:])  # [N_channels, 30] float32
+        feats = normalise(feats, mean=self._feat_mean, std=self._feat_std)
         labels = channel_descriptors()
         return [
             TextTimeSeriesPrompt(label, channel.tolist())

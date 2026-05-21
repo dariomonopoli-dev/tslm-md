@@ -253,13 +253,26 @@ def main(args: argparse.Namespace) -> None:
     if args.starting_checkpoint:
         load_checkpoint_into_model(model.model, args.starting_checkpoint)
 
+    if cfg["training"].get("gradient_checkpointing", False):
+        target = getattr(model.model, "lang_encoder", model.model)
+        enable = getattr(target, "gradient_checkpointing_enable", None)
+        if callable(enable):
+            enable()
+            if hasattr(target, "config"):
+                target.config.use_cache = False
+            print("gradient checkpointing enabled on lang_encoder")
+        else:
+            print("WARNING: gradient_checkpointing requested but not supported by model")
+
     # 2) dataset + loader
+    feature_stats_json = cfg["data"].get("feature_stats_json", "data/feature_stats.json")
     train_ds = MDCoTQADataset(
         split="train",
         EOS_TOKEN=model.text_tokenizer.eos_token or "</s>",
         featurized_h5=cfg["data"]["featurized_h5"],
         targets_json=cfg["data"].get("targets_json", "data/targets.json"),
         splits_dir=cfg["data"]["splits_dir"],
+        feature_stats_json=feature_stats_json,
     )
     val_ds = MDCoTQADataset(
         split="validation",
@@ -267,6 +280,7 @@ def main(args: argparse.Namespace) -> None:
         featurized_h5=cfg["data"]["featurized_h5"],
         targets_json=cfg["data"].get("targets_json", "data/targets.json"),
         splits_dir=cfg["data"]["splits_dir"],
+        feature_stats_json=feature_stats_json,
     )
     print(f"train size: {len(train_ds)}, val size: {len(val_ds)}")
 

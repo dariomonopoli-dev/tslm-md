@@ -4,13 +4,17 @@
 model:
   type: OpenTSLMFlamingo
   llm_id: meta-llama/Llama-3.2-1B
-  starting_checkpoint: OpenTSLM/llama-3.2-1b-ecg-flamingo
+  # NOTE: the actual checkpoint loaded is the juncliu Chronos-2 variant; the
+  # path is hardcoded in scripts/launch_train.sh and passed via
+  # --starting-checkpoint on the CLI.
   cross_attn_every_n_layers: 1
   freeze_lm_embeddings: false
+  encoder_type: chronos2
 
 data:
   featurized_h5: data/featurized.h5
-  pdbbind_index: data/pdbbind_index/index_v2020.tsv
+  targets_json: data/targets.json
+  feature_stats_json: data/feature_stats.json
   splits_dir: data/splits
   n_frames_out: 30
   n_channels: 10
@@ -19,16 +23,18 @@ training:
   batch_size: 1
   grad_accum_steps: 16
   precision: bf16
-  gradient_checkpointing: true
+  gradient_checkpointing: true # wired in train_stage6.py; saves VRAM on small GPUs
   optimizer: adamw
   lr: 1.0e-4
   weight_decay: 0.01
   warmup_frac: 0.05            # 5% linear warmup, then cosine decay to 0
-  max_steps: 16000             # forward passes — = 10 epochs over 1625 train samples
+  # Forward-pass budget. With the new 10-channel preprocess the train split
+  # is ~13,765 samples, so 16,000 forward passes ≈ 1.16 epochs. Bump this
+  # (~138,000) if you want ~10 epochs over the full preprocessed set.
+  max_steps: 16000
   ckpt_every_steps: 4000       # 4 checkpoints + final.pt — ~5 x 7GB = 35GB disk
   eval_every_steps: 500        # cheap val-loss probe, 32 probes total
   log_every_steps: 20          # log line cadence
-  early_stop_patience: 5       # NOT currently wired into training loop
   grad_clip_norm: 1.0
   # Real-time visualisation: every vis_every_steps, generate on vis_n_samples
   # val items, parse, compute Pearson/Spearman/MAE, push scatter PNG to wandb.
