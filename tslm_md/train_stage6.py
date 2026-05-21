@@ -344,13 +344,21 @@ def main(args: argparse.Namespace) -> None:
             if step % log_every == 0:
                 elapsed = time.time() - t_start
                 steps_per_sec = (step + 1) / max(elapsed, 1e-6)
-                print(f"step={step:>6d}  loss={loss.item():.4f}  "
-                      f"sps={steps_per_sec:.2f}  elapsed={elapsed:.0f}s")
+                steps_left = max(max_steps - step - 1, 0)
+                eta_s = steps_left / max(steps_per_sec, 1e-9)
+                eta_min = eta_s / 60.0
+                eta_str = (f"{eta_min:.1f}min" if eta_min < 60
+                           else f"{eta_min/60:.2f}h")
+                print(f"step={step:>6d}/{max_steps}  loss={loss.item():.4f}  "
+                      f"sps={steps_per_sec:.2f}  elapsed={elapsed:.0f}s  "
+                      f"eta={eta_str}  ({steps_left} steps left)")
                 wb.log({
                     "train/loss": float(loss.item()),
                     "train/lr": optim.param_groups[0]["lr"],
                     "train/steps_per_sec": steps_per_sec,
                     "train/elapsed_s": elapsed,
+                    "train/eta_min": eta_min,
+                    "train/steps_left": steps_left,
                     "step": step,
                 })
 
