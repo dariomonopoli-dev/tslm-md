@@ -179,9 +179,16 @@ def main(args: argparse.Namespace) -> int:
 
     with h5py.File(h5p, "r") as h5:
         h5_keys_lower = {k.lower(): k for k in h5.keys()}
-        ids_to_eval = benchmark_ids
+        # Pre-filter benchmark IDs to those actually featurised, so --max-samples
+        # caps the EVALUATED set instead of the ATTEMPTED set.
+        featurized_ids = [pid for pid in benchmark_ids if pid.lower() in h5_keys_lower]
+        unfeaturised = len(benchmark_ids) - len(featurized_ids)
+        print(f"after intersecting with featurized.h5: n={len(featurized_ids)} "
+              f"({unfeaturised} ids skipped — not featurised in our 2000-subset)")
+        ids_to_eval = featurized_ids
         if args.max_samples:
             ids_to_eval = ids_to_eval[: args.max_samples]
+        n_skipped_not_in_h5 = unfeaturised
         t_start = time.time()
         for i, pid in enumerate(ids_to_eval):
             key = pid.lower()
