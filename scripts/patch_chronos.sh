@@ -92,6 +92,14 @@ else
   echo "    already patched"
 fi
 
+echo "==> patching $FLAM (drop eos_token_id from Flamingo.generate)"
+if grep -q '^\s*eos_token_id=' "$FLAM"; then
+  sed -i.bak '/^\s*eos_token_id=/d' "$FLAM"
+  echo "    OK — eos_token_id kwarg removed"
+else
+  echo "    already patched"
+fi
+
 echo "==> patching $PYPROJ for Python 3.11+"
 if [ -f "$PYPROJ" ] && grep -q 'requires-python = ">=3.12"' "$PYPROJ"; then
   sed -i.bak 's/requires-python = ">=3.12"/requires-python = ">=3.11"/' "$PYPROJ"
