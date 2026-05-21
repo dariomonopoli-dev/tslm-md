@@ -16,6 +16,7 @@ env/
 data/*
 !data/targets.json
 !data/feature_stats.json
+!data/s3_data_loader.py
 !data/splits/*
 !data/featurized.h5
 !data/.gitkeep
