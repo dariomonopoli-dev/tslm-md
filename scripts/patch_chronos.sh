@@ -26,6 +26,29 @@ else
   echo "    already patched (or upstream changed)"
 fi
 
+echo "==> patching $FLAM (move perceiver + gated_cross_attn to device)"
+if ! grep -q '# perceiver-device patch applied' "$FLAM"; then
+  python - <<'PY'
+p = "third_party/OpenTSLM/src/opentslm/model/llm/OpenTSLMFlamingo.py"
+with open(p) as f:
+    src = f.read()
+marker = "self.model = model"
+insert = (
+    "# perceiver-device patch applied\n"
+    "        model.perceiver = model.perceiver.to(device)\n"
+    "        if hasattr(model.lang_encoder, 'gated_cross_attn_layers'):\n"
+    "            model.lang_encoder.gated_cross_attn_layers = model.lang_encoder.gated_cross_attn_layers.to(device)\n"
+    "        "
+)
+src = src.replace(marker, insert + marker, 1)
+with open(p, "w") as f:
+    f.write(src)
+print("    OK — perceiver-device patch applied")
+PY
+else
+  echo "    already patched"
+fi
+
 echo "==> patching $TSF (forward)"
 if [ ! -f "$TSF" ]; then
   echo "    ERROR: $TSF not found"
