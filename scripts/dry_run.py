@@ -47,12 +47,20 @@ def main(args: argparse.Namespace) -> None:
             f"   Make sure setup_a30.sh ran and cloned third_party/MiSaTo-dataset."
         )
     with h5py.File(h5_path, "r") as f:
-        if args.pdb_id not in f:
+        # PDB ids in MISATO are stored lowercase; accept either case here.
+        if args.pdb_id in f:
+            resolved_id = args.pdb_id
+        elif args.pdb_id.lower() in f:
+            resolved_id = args.pdb_id.lower()
+        elif args.pdb_id.upper() in f:
+            resolved_id = args.pdb_id.upper()
+        else:
             available = list(f.keys())[:5]
             fail(f"PDB id '{args.pdb_id}' not in {h5_path}. Available: {available}")
-        g = f[args.pdb_id]
+        g = f[resolved_id]
         coords_shape = g["trajectory_coordinates"].shape
         mol_begin = g["molecules_begin_atom_index"][:]
+        print(f"  resolved PDB id              = {resolved_id}")
         print(f"  trajectory_coordinates.shape = {coords_shape}")
         print(f"  molecules_begin_atom_index   = {mol_begin}")
         print(f"  ligand starts at atom index  = {int(mol_begin[-1])}")
