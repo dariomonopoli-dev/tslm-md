@@ -9,20 +9,44 @@ baselines.json
 # Source datasets (too large, downloaded separately)
 MD.hdf5
 *.hdf5
+*.h5
 QM*.hdf5
 
 # Reference repos (clone separately if needed for re-preprocessing)
 misato-affinity/
 misato-dataset-master/
 
+# Heavy artefacts (never commit)
+data/*
+!data/targets.json
+!data/feature_stats.json
+!data/s3_data_loader.py
+!data/splits/*
+!data/featurized.h5
+!data/.gitkeep
+third_party/*
+!third_party/.gitkeep
+checkpoints/
+results/
+*.pt
+*.bin
+*.safetensors
+
 # Python env
 .venv/
+venv/
+env/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 *.pyo
+.Python
 *.egg-info/
+build/
+dist/
 .pytest_cache/
 .mypy_cache/
+.ipynb_checkpoints/
 
 # OpenTSLM + molemotion came with their own inner .git directories; we keep
 # them as plain files in this repo and stash the original .git as .git.bak/
@@ -35,6 +59,7 @@ website/
 
 # OS / editor cruft
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
@@ -42,7 +67,13 @@ website/
 # HF / model caches
 .cache/
 
+# Streamlit
+.streamlit/secrets.toml
+
+# Local env
+.env
+.env.local
+
 # Local run outputs
 runs/
-*.pt
 *.log

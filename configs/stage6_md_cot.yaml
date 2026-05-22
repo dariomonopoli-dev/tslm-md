@@ -1,0 +1,59 @@
+# Stage-6 training config.
+# Plugs into OpenTSLM CurriculumTrainer.
+
+model:
+  type: OpenTSLMFlamingo
+  llm_id: meta-llama/Llama-3.2-1B
+  # NOTE: the actual checkpoint loaded is the juncliu Chronos-2 variant; the
+  # path is hardcoded in scripts/launch_train.sh and passed via
+  # --starting-checkpoint on the CLI.
+  cross_attn_every_n_layers: 1
+  # true: forces gradient through gated cross-attn (the only writable bridge to
+  # the time-series) instead of through 262M unfrozen embeddings — without this
+  # the model collapses to a constant answer that minimizes token CE.
+  freeze_lm_embeddings: true
+  encoder_type: chronos2
+
+data:
+  featurized_h5: data/featurized.h5
+  targets_json: data/targets.json
+  feature_stats_json: data/feature_stats.json
+  splits_dir: data/splits
+  # Raw MISATO MD.hdf5 — used only at vis time to render frame-0 PDB structures
+  # for the top-N best/worst predicted complexes into wandb.Molecule.
+  misato_h5: data/misato/MD.hdf5
+  n_frames_out: 30
+  n_channels: 10
+
+training:
+  batch_size: 1
+  grad_accum_steps: 16
+  precision: bf16
+  gradient_checkpointing: true # wired in train_stage6.py; saves VRAM on small GPUs
+  optimizer: adamw
+  lr: 1.0e-4
+  weight_decay: 0.01
+  warmup_frac: 0.05            # 5% linear warmup, then cosine decay to 0
+  # ~10 epochs over the 13,758-sample train split at batch_size=1.
+  # 138,000 forward passes / 16 grad_accum = 8,625 optimiser steps.
+  # At ~5.4 sps this is ~7 hours wall-clock on an A30.
+  max_steps: 138000
+  ckpt_every_steps: 20000      # 7 checkpoints (~7GB each) -> ~50GB disk
+  eval_every_steps: 1000       # ~138 cheap val-loss probes
+  log_every_steps: 20          # log line cadence
+  grad_clip_norm: 1.0
+  # Real-time visualisation: every vis_every_steps, generate on vis_n_samples
+  # val items, parse, compute Pearson/Spearman/MAE, push scatter PNG to wandb.
+  vis_every_steps: 5000        # ~28 scatter plots over training
+  vis_n_samples: 20
+  vis_max_new_tokens: 50
+
+paths:
+  results_dir: results/stage6_md_cot
+  checkpoint_dir: results/stage6_md_cot/checkpoints
+
+wandb:
+  enabled: true
+  project: tslm-md
+  run_name: stage6_md_cot
+  tags: [stage6, chronos2, llama-3.2-1b, juncliu-ckpt]
