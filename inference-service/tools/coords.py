@@ -135,36 +135,43 @@ def cluster_poses(pdb_id: str, k: int = 3) -> dict:
 @register({
     "name": "clash_check",
     "description": (
-        "Count atom pairs closer than 1.5 Å at a given frame. Use to rule "
-        "out broken-frame artifacts before running expensive tools like Vina. "
-        "Non-zero count = likely a clash artifact."
+        "Count heavy-atom pairs whose distance is below 0.9 Å (true van der "
+        "Waals overlap, well below any chemical bond length of ~1.5 Å). "
+        "Use to rule out broken-frame artifacts before running expensive "
+        "tools like Vina. Reports both raw count and the threshold used."
     ),
     "input_schema": {
         "type": "object",
         "properties": {
             "pdb_id": {"type": "string"},
             "frame_idx": {"type": "integer"},
+            "threshold_angstrom": {
+                "type": "number", "default": 0.9, "minimum": 0.5, "maximum": 1.4,
+                "description": "Distance cutoff in Å. 0.9 = real overlap; 1.5 catches every bond.",
+            },
         },
         "required": ["pdb_id", "frame_idx"],
     },
 })
-def clash_check(pdb_id: str, frame_idx: int) -> dict:
+def clash_check(pdb_id: str, frame_idx: int, threshold_angstrom: float = 0.9) -> dict:
     sys = _load_system(pdb_id)
     n_frames = sys["traj"].shape[0]
     if not 0 <= frame_idx < n_frames:
         return {"error": f"frame_idx {frame_idx} out of range [0, {n_frames})"}
     heavy = _heavy_mask(sys)
     coords = sys["traj"][frame_idx][heavy]
-    # Pairwise distance (heavy atoms only; cheap enough for typical N ~ a few hundred)
     diff = coords[:, None, :] - coords[None, :, :]
     dist = np.sqrt((diff ** 2).sum(axis=-1))
     np.fill_diagonal(dist, np.inf)
-    clashes = int((dist < 1.5).sum() // 2)
+    clashes = int((dist < threshold_angstrom).sum() // 2)
+    # Heuristic: > 3 hard overlaps = real broken frame. Single isolated
+    # overlap can be force-field artifact, not enough to discard.
     return {
         "pdb_id": pdb_id,
         "frame_idx": frame_idx,
+        "threshold_angstrom": threshold_angstrom,
         "n_clash_pairs": clashes,
-        "is_broken_frame": bool(clashes > 0),
+        "is_broken_frame": bool(clashes > 3),
     }
 
 

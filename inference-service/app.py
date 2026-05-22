@@ -110,7 +110,14 @@ async def health() -> HealthResponse:
 
 
 @app.get("/pdb_ids")
-async def pdb_ids() -> list[str]:
+async def pdb_ids(q: str = "", limit: int = 50) -> list[str]:
+    """Bulk list (local backends) OR autocomplete (tunnel backend).
+
+    Local mode: returns the full test-split whitelist (~1612 entries).
+    Tunnel mode: q='' returns empty; pass q='3BL' to autocomplete via tunnel/ids.
+    """
+    if inference.backend() == "tunnel":
+        return inference.tunnel_search_ids(q, limit=limit)
     ids = inference.list_pdb_ids()
     if not ids:
         raise HTTPException(status_code=503, detail="test-split index not built")
@@ -120,8 +127,9 @@ async def pdb_ids() -> list[str]:
 def _build_predict_response(result: dict) -> dict:
     """Wrap inference.predict() output with the v8.1 envelope + verifier result.
 
-    The regex verifier is wired in task #8 — until then, attach an empty
-    placeholder so the frontend can render the response shape stably.
+    Strips the `_tunnel_raw` internal field if present and lifts its extras
+    (verdict, confidence, channel_summary, disagreement_z) into top-level
+    keys the frontend can render directly.
     """
     try:
         import verifier  # task #8
@@ -131,8 +139,18 @@ def _build_predict_response(result: dict) -> dict:
             "verified": 0, "contradicted": 0, "unverifiable": 0, "total": 0,
             "claims": [],
         }
+    # Lift tunnel-specific extras up to the response root.
+    tunnel_raw = result.pop("_tunnel_raw", None)
+    extras: dict = {}
+    if tunnel_raw:
+        for k in ("verdict", "verdict_reason", "confidence",
+                  "independent_energy", "disagreement_z",
+                  "channel_summary", "affinity"):
+            if k in tunnel_raw:
+                extras[k] = tunnel_raw[k]
     return {
         **result,
+        **extras,
         "regex_verifier": regex,
         "rag_corpus_version": os.getenv("RAG_CORPUS_VERSION", "v1-unset"),
         "judge_model": os.getenv("ANTHROPIC_MODEL", "anthropic/claude-opus-4-7"),
@@ -184,6 +202,69 @@ async def pdb_string(pdb_id: str, stride: int = 5, drop_water: bool = True):
         return hdf5_to_pdb(pdb_id, stride=stride, drop_water=drop_water)
     except NotImplementedError:
         raise HTTPException(status_code=501, detail="task #9 not landed")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"{pdb_id} not in MISATO HDF5")
+
+
+@app.get("/channels/{pdb_id}")
+async def channels(pdb_id: str):
+    """Real per-frame channels from preprocessed/features_test.npz.
+
+    Shape: (100 frames, 4 channels) where channels are
+    [rmsd_ligand, interaction_energy, distance, bSASA] per
+    preprocess_misato.py:CHANNEL_ORDER.
+    """
+    import numpy as np
+    from pathlib import Path
+
+    candidates = [
+        Path("/app/data/preprocessed/features_test.npz"),
+        Path("preprocessed/features_test.npz"),
+        Path("../preprocessed/features_test.npz"),
+        Path(os.getenv("FEATURES_TEST_NPZ", "")),
+    ]
+    path = next((p for p in candidates if p and p.exists()), None)
+    if path is None:
+        raise HTTPException(status_code=503, detail="features_test.npz not found")
+
+    arr = np.load(path, allow_pickle=True)
+    ids = [str(p) for p in arr["pdb_ids"]]
+    if pdb_id not in ids:
+        raise HTTPException(status_code=404, detail=f"{pdb_id} not in features_test")
+    idx = ids.index(pdb_id)
+    channels = arr["channels"][idx]  # (100, 4)
+
+    rows = []
+    for f in range(channels.shape[0]):
+        rows.append({
+            "frame": f,
+            "rmsd": float(channels[f, 0]),
+            "energy": float(channels[f, 1]),
+            "dist": float(channels[f, 2]),
+            "bsasa": float(channels[f, 3]),
+        })
+    return {"pdb_id": pdb_id, "n_frames": channels.shape[0], "frames": rows}
+
+
+@app.get("/frame_image/{pdb_id}")
+async def frame_image(pdb_id: str, frame: int = 0, width: int = 600, height: int = 450):
+    """Render a single MD frame to PNG. Cached on disk per (pdb, frame, dims)."""
+    from fastapi.responses import Response
+    try:
+        import render
+        data = render.render_frame(pdb_id, frame, width=width, height=height)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"{pdb_id} not in MISATO HDF5")
+    except IndexError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"render failed: {e}")
+    return Response(content=data, media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 async def _run_predict_for_eval(req: EvaluateRequest) -> dict:
@@ -237,7 +318,9 @@ async def evaluate(request: Request, req: EvaluateRequest, force: bool = False):
         "usd": _verdict_cost_usd(verdict, jm),
         "cached": False, "tool_calls": 0,
     })
-    eval_cache.put(req.pdb_id, req.variant, "fast", mv, rcv, jm, verdict)
+    # Only cache successful verdicts — failed parses get a fresh attempt next time.
+    if not verdict.get("_degraded"):
+        eval_cache.put(req.pdb_id, req.variant, "fast", mv, rcv, jm, verdict)
     return {**verdict, "cached": False}
 
 
@@ -268,7 +351,8 @@ async def evaluate_agent_route(request: Request, req: EvaluateRequest, force: bo
         "usd": _verdict_cost_usd(verdict, jm),
         "cached": False, "tool_calls": verdict["agent_trace"]["tool_calls"],
     })
-    eval_cache.put(req.pdb_id, req.variant, "agent", mv, rcv, jm, payload)
+    if not verdict.get("_degraded"):
+        eval_cache.put(req.pdb_id, req.variant, "agent", mv, rcv, jm, payload)
     return payload
 
 
@@ -281,6 +365,56 @@ def _verdict_cost_usd(verdict: dict, model: str) -> float:
         int(t.get("output_tokens", 0)),
         int(t.get("cache_read_input_tokens", 0)),
     )
+
+
+@app.post("/knowledge/upload")
+async def knowledge_upload(request: Request):
+    """Multipart upload — file + title + comma-separated pdb_ids hints.
+
+    Pipes through docling (PDF/DOCX/PPTX/etc → markdown) → chunker →
+    label tagger → OpenRouter embeddings → Chroma upsert.
+    """
+    from fastapi import UploadFile
+    form = await request.form()
+    uploaded: UploadFile | None = form.get("file")  # type: ignore[assignment]
+    title_str = str(form.get("title") or "")
+    pdb_ids_str = str(form.get("pdb_ids") or "")
+
+    if uploaded is None:
+        raise HTTPException(status_code=400, detail="missing 'file' field in form data")
+    content = await uploaded.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="empty file")
+
+    pdb_id_list = [p.strip().upper() for p in pdb_ids_str.split(",") if p.strip()]
+
+    try:
+        from rag.upload import ingest_upload
+        return ingest_upload(
+            filename=uploaded.filename or "untitled",
+            content=content,
+            title=title_str or (uploaded.filename or "untitled"),
+            pdb_ids=pdb_id_list,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=415, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"ingest failed: {e}")
+
+
+@app.get("/knowledge")
+async def knowledge_list():
+    """List uploaded sources with chunk counts."""
+    from rag.upload import list_uploaded_sources
+    return {"sources": list_uploaded_sources()}
+
+
+@app.delete("/knowledge/{source_id}")
+async def knowledge_delete(source_id: str):
+    """Remove all chunks for a previously uploaded source."""
+    from rag.upload import delete_uploaded_source
+    n = delete_uploaded_source(source_id)
+    return {"source_id": source_id, "chunks_removed": n}
 
 
 @app.get("/failure_modes")

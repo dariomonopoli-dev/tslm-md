@@ -119,9 +119,51 @@ def _read_markdown(path: Path) -> Iterable[Chunk]:
         chunk_i += 1
 
 
+def _read_jsonl_corpus(path: Path) -> Iterable[Chunk]:
+    """One chunk per JSONL line. Used for data/rag_sources/{uniprot,pubmed}.jsonl.
+
+    Each line must have at least {text, pdb_ids}. Optional: {kind, pmid, uniprot}.
+    The label tagger runs on the chunk text PLUS the explicit pdb_ids hint so
+    co-mentioned PDBs get correctly redacted.
+    """
+    if not path.exists():
+        return
+    for i, line in enumerate(path.read_text().splitlines()):
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        text = entry.get("text", "")
+        if not text:
+            continue
+        pdb_ids = entry.get("pdb_ids") or []
+        tag = tag_chunk(text, explicit_pdb_ids=pdb_ids)
+        meta = {
+            "kind": entry.get("kind") or "corpus_jsonl",
+            "source_file": path.name,
+        }
+        if "pmid" in entry:
+            meta["pmid"] = entry["pmid"]
+        if "uniprot" in entry:
+            meta["uniprot"] = entry["uniprot"]
+        if "title" in entry:
+            meta["title"] = entry["title"]
+        yield Chunk(
+            chunk_id=_chunk_id(str(path), i),
+            text=text,
+            source=str(path),
+            contains_label=tag.contains_label,
+            pdb_ids=tag.pdb_ids,
+            metadata=meta,
+        )
+
+
 def discover_sources() -> list[tuple[str, Path]]:
     """Returns (source-name, path) tuples for each input we know how to read."""
     root = Path(os.getenv("INGEST_ROOT", "."))
+    data = Path(os.getenv("RAG_SOURCES_DIR", "data/rag_sources"))
     sources = [
         ("affinity_csv", root / "misato-affinity" / "data" / "affinity_data.csv"),
         ("md_brief", root / "PROJECT_BRIEF.md"),
@@ -129,6 +171,8 @@ def discover_sources() -> list[tuple[str, Path]]:
         ("md_training", root / "TRAINING.md"),
         ("md_dataset", root / "DATASET.md"),
         ("md_readme", root / "README.md"),
+        ("uniprot_jsonl", data / "uniprot.jsonl"),
+        ("pubmed_jsonl", data / "pubmed.jsonl"),
     ]
     return [(name, p) for name, p in sources if p.exists()]
 
@@ -146,7 +190,15 @@ def _embed_cache_path(text: str) -> Path:
 
 
 def embed_batch(texts: list[str]) -> list[list[float]]:
-    """Embed a batch of texts; per-text disk cache; one OpenAI call per uncached batch."""
+    """Embed a batch of texts via OpenRouter's embeddings endpoint.
+
+    OpenRouter exposes the same OpenAI-compatible SDK shape, so one key
+    (OPENROUTER_API_KEY) covers both LLM (Claude) and embeddings.
+    Configure with OPENAI_API_KEY + EMBEDDINGS_BASE_URL=https://api.openai.com/v1
+    if you want to use OpenAI directly instead.
+
+    Per-text disk cache keyed by sha256(text); same text is never re-embedded.
+    """
     cached: dict[int, list[float]] = {}
     uncached_idx: list[int] = []
     uncached_texts: list[str] = []
@@ -160,8 +212,30 @@ def embed_batch(texts: list[str]) -> list[list[float]]:
 
     if uncached_texts:
         from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        model = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+        # Prefer OpenRouter (single-key setup). Fall back to OpenAI if explicitly set.
+        api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv(
+            "EMBEDDINGS_BASE_URL",
+            "https://openrouter.ai/api/v1" if os.getenv("OPENROUTER_API_KEY") else "https://api.openai.com/v1",
+        )
+        if not api_key:
+            raise RuntimeError("set OPENROUTER_API_KEY (or OPENAI_API_KEY) for embeddings")
+
+        default_model = (
+            "openai/text-embedding-3-small"
+            if "openrouter" in base_url
+            else "text-embedding-3-small"
+        )
+        model = os.getenv("EMBEDDING_MODEL", default_model)
+
+        headers = {}
+        if "openrouter" in base_url:
+            headers = {
+                "HTTP-Referer": os.getenv("OPENROUTER_REFERER", "http://localhost:3000"),
+                "X-Title": os.getenv("OPENROUTER_TITLE", "MoleMotion"),
+            }
+
+        client = OpenAI(api_key=api_key, base_url=base_url, default_headers=headers)
         resp = client.embeddings.create(model=model, input=uncached_texts)
         for j, item in enumerate(resp.data):
             i = uncached_idx[j]
@@ -222,6 +296,8 @@ def main() -> None:
     for name, path in sources:
         if name == "affinity_csv":
             all_chunks.extend(_read_affinity_csv(path))
+        elif name.endswith("_jsonl"):
+            all_chunks.extend(_read_jsonl_corpus(path))
         else:
             all_chunks.extend(_read_markdown(path))
 

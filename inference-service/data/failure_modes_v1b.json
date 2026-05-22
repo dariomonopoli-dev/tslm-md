@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-05-22T08:05:33Z",
+  "patterns": [
+    {
+      "cluster": "Model\u2013physics disagreement",
+      "count": 2,
+      "systems": "3ST5, 5EM9"
+    },
+    {
+      "cluster": "Confident model, experimental mismatch",
+      "count": 8,
+      "systems": "6SSY, 1HY7, 5EDI, 1BMN, 3OE6, 2LH8, 1JYC, 6IBK"
+    }
+  ],
+  "rows": [
+    {
+      "agent": "review",
+      "mmgbsa": 11.3,
+      "model": 9.46,
+      "pdb": "3ST5",
+      "reason": "disagreement |z(model) - z(physics)| = 1.58 > tau_high = 1.50; predicted pK 9.46 vs experimental 11.30 (|\u0394|=1.84); worst trend: misato_bSASA_A2 fluctuating (923.20 \u2192 826.25, mean 852.11)",
+      "vina": 23.08
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 3.19,
+      "model": 4.95,
+      "pdb": "6SSY",
+      "reason": "agreement within threshold (|\u0394z| = 0.77 <= 1.50); predicted pK 4.95 vs experimental 3.19 (|\u0394|=1.76); worst trend: n_close_contacts increasing (186.00 \u2192 218.00, mean 196.73)",
+      "vina": 20.79
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 5.39,
+      "model": 7.15,
+      "pdb": "1HY7",
+      "reason": "agreement within threshold (|\u0394z| = 0.90 <= 1.50); predicted pK 7.15 vs experimental 5.39 (|\u0394|=1.76); worst trend: misato_bSASA_A2 increasing (331.78 \u2192 317.66, mean 340.69)",
+      "vina": 7.82
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 9.52,
+      "model": 7.9,
+      "pdb": "5EDI",
+      "reason": "agreement within threshold (|\u0394z| = 0.76 <= 1.50); predicted pK 7.90 vs experimental 9.52 (|\u0394|=1.62); worst trend: n_close_contacts fluctuating (449.00 \u2192 398.00, mean 398.27)",
+      "vina": 22.57
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 8.44,
+      "model": 6.88,
+      "pdb": "1BMN",
+      "reason": "agreement within threshold (|\u0394z| = 0.11 <= 1.50); predicted pK 6.88 vs experimental 8.44 (|\u0394|=1.57); worst trend: misato_bSASA_A2 fluctuating (612.72 \u2192 582.51, mean 596.59)",
+      "vina": 24.89
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 8.09,
+      "model": 6.57,
+      "pdb": "3OE6",
+      "reason": "agreement within threshold (|\u0394z| = 0.37 <= 1.50); predicted pK 6.57 vs experimental 8.09 (|\u0394|=1.51); worst trend: n_close_contacts decreasing (271.00 \u2192 174.00, mean 244.37)",
+      "vina": 13.69
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 4.18,
+      "model": 5.69,
+      "pdb": "2LH8",
+      "reason": "agreement within threshold (|\u0394z| = 0.38 <= 1.50); predicted pK 5.69 vs experimental 4.18 (|\u0394|=1.51); worst trend: ligand_rmsd_A increasing (0.00 \u2192 52.70, mean 25.25)",
+      "vina": 0.74
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 5.57,
+      "model": 6.88,
+      "pdb": "5EM9",
+      "reason": "disagreement |z(model) - z(physics)| = 1.89 > tau_high = 1.50; predicted pK 6.88 vs experimental 5.57 (|\u0394|=1.31); worst trend: misato_bSASA_A2 increasing (573.28 \u2192 614.93, mean 593.58)",
+      "vina": 78.1
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 4.34,
+      "model": 5.59,
+      "pdb": "1JYC",
+      "reason": "agreement within threshold (|\u0394z| = 0.25 <= 1.50); predicted pK 5.59 vs experimental 4.34 (|\u0394|=1.25); worst trend: n_close_contacts decreasing (410.00 \u2192 273.00, mean 298.57)",
+      "vina": 16.02
+    },
+    {
+      "agent": "review",
+      "mmgbsa": 3.29,
+      "model": 4.54,
+      "pdb": "6IBK",
+      "reason": "agreement within threshold (|\u0394z| = 0.32 <= 1.50); predicted pK 4.54 vs experimental 3.29 (|\u0394|=1.25); worst trend: n_close_contacts decreasing (230.00 \u2192 130.00, mean 153.40)",
+      "vina": 2.89
+    }
+  ],
+  "variant": "v1b"
+}

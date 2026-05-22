@@ -223,18 +223,30 @@ The 5-epoch trajectory is internally consistent with the data-ceiling story from
 
 **vs baselines (epoch 5 test):** RMSE 1.80 (above `ols_means` 1.78, below `mlp_engineered` 1.68); Pearson 0.34 (clears `ols_means` 0.27, near `mlp_engineered` 0.36). v1a sits cleanly inside the OLS–MLP corridor and reaches ~94% of the MLP_engineered Pearson ceiling that the audit (§10) showed to be near the 4-channel summary-feature limit.
 
-### v1b (A100 personal box, queued / running)
+### v1b (Lambda Labs A100-SXM4-40GB, in progress)
 
-| Epoch | Train loss | Val RMSE (string) | Val RMSE (head) | Val R (string) | Val R (head) |
-|---|---|---|---|---|---|
-| 1 | — | — | — | — | — |
-| 2 | — | — | — | — | — |
-| 3 | — | — | — | — | — |
-| 4 | — | — | — | — | — |
-| 5 | — | — | — | — | — |
+Running on a Lambda Labs A100 40GB instance (not the 80GB box from §3) — required `--batch-size 4` instead of 16 (the 40GB cap is hit at the `logits.float()` step inside `ForCausalLMLoss`). All other hyperparameters per §3.
+
+| Epoch | Train loss | Val RMSE (string) | Val RMSE (head) | Val R (string) | Val R (head) | Status |
+|---|---|---|---|---|---|---|
+| 1 | — | **1.89** | **1.69** | 0.29 | **0.305** | **Val: head RMSE clears `mlp_engineered` (1.74) — the hard must-beat target. Head − string gap of 0.20 RMSE confirms the tokenization-bottleneck hypothesis from §5. v1a never got below 1.87 on val RMSE.** |
+| 2 | — | — | — | — | — | |
+| 3 | — | — | — | — | — | |
+| 4 | — | — | — | — | — | |
+| 5 | — | — | — | — | — | |
 
 (Both `string_parse` and `regression_head` metrics are emitted per epoch for
 v1b — the head's RMSE is the headline number for this variant.)
+
+**Test split (1612 systems, held-out — never used for selection):**
+
+| Epoch | Test RMSE (string) | Test RMSE (head) | Test R (string) | Test R (head) | n_parsed (head) | vs baselines |
+|---|---|---|---|---|---|---|
+| 1 | 1.80 | **1.59** | 0.30 | **0.329** | 1612 / 1612 (100%) | **Head RMSE beats `mlp_engineered` test (1.68) by 0.09 — first model in this project below the engineered-feature ceiling on test.** Head Pearson 0.33 sits just under `mlp_engineered` (0.36), consistent with the §10 data-ceiling story (4-channel summary features cap Pearson near 0.36). |
+| 2 | 1.92 | 1.71 | 0.336 | 0.338 | 1612 / 1612 (100%) | Head RMSE drifted up (+0.12) but Pearson edged up (+0.009); MAE 1.30 → 1.41. Signature of the train→test pK shift (train 6.59 vs test 5.55, DATASET.md §7) — model finds more correlation but mean prediction moves away from test's lower mean. Same shape v1a showed at epoch 2. Epoch 1 still wins on RMSE. |
+| 3 | — | — | — | — | — | |
+| 4 | — | — | — | — | — | |
+| 5 | — | — | — | — | — | |
 
 ### λ sweep (if time permits)
 
