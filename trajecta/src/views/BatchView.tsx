@@ -9,6 +9,7 @@ import { RecommendationPill, DarkInput } from '../components/ui.tsx';
 import { GlowCard, CardHeader } from '../components/GlowCard.tsx';
 import type {
   ApiError,
+  HealthResponse,
   PredictResponse,
   RecommendationLabel,
   Variant,
@@ -18,6 +19,7 @@ import type {
 
 interface BatchViewProps {
   variant: Variant;
+  health: HealthResponse | null;
   onVariantChange: (v: Variant) => void;
   onGoToSingle: (pdb: string) => void;
 }
@@ -34,11 +36,13 @@ interface BatchRow {
 }
 
 
-const AGENT_USD_PER_CALL = 0.30;
+// /evaluate (fast) is cheaper than /evaluate/agent (tool-using). Batch uses
+// the fast endpoint — see comment on includeAgent below.
+const AGENT_USD_PER_CALL = 0.05;
 const PARALLEL_AGENT_CALLS = 5;
 
 
-export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
+export function BatchView({ variant, health, onGoToSingle }: BatchViewProps) {
   const [whitelist, setWhitelist] = useState<string[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
   const [includeAgent, setIncludeAgent] = useState(true);
@@ -52,10 +56,13 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
   const [filterDiscard, setFilterDiscard] = useState(false);
   const [sortBy, setSortBy] = useState<'recommendation' | 'pred' | 'delta'>('recommendation');
 
+  // Tunnel backend returns [] for empty q — only bulk-fetch on local/sagemaker.
+  const isTunnel = health?.inference_backend === 'tunnel';
   useEffect(() => {
+    if (isTunnel) return;
     let cancelled = false;
     (async () => {
-      const res = await api.pdbIds({ limit: 50 });
+      const res = await api.pdbIds({});
       if (cancelled) return;
       if (res.ok) {
         setWhitelist(res.data);
@@ -66,20 +73,21 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isTunnel]);
 
   useEffect(() => {
     if (!pickerOpen) return;
+    if (isTunnel && !pickerFilter) return;
     const controller = new AbortController();
     const t = setTimeout(async () => {
-      const res = await api.pdbIds({ q: pickerFilter, limit: 50, signal: controller.signal });
+      const res = await api.pdbIds({ q: pickerFilter, signal: controller.signal });
       if (res.ok) setWhitelist(res.data);
     }, 250);
     return () => {
       clearTimeout(t);
       controller.abort();
     };
-  }, [pickerFilter, pickerOpen]);
+  }, [pickerFilter, pickerOpen, isTunnel]);
 
   const pickerOptions = useMemo(() => {
     const q = pickerFilter.toUpperCase();
@@ -94,6 +102,17 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
 
   async function handleRun() {
     if (selected.length === 0 || running) return;
+
+    // Spend gate: if the projected agent cost overruns the daily cap, block.
+    const cap = health?.remaining_cap_usd;
+    if (includeAgent && cap != null && estCostUsd > cap) {
+      setError({
+        status: 402,
+        message: `would spend $${estCostUsd.toFixed(2)} but only $${cap.toFixed(2)} remains today — uncheck "include fast agent screen" or reduce selection`,
+      });
+      return;
+    }
+
     setRunning(true);
     setError(null);
     setRows(Object.fromEntries(selected.map(id => [id, { pdb_id: id, predicting: true, evaluating: false }])));
@@ -313,17 +332,18 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
                 <Plus size={13} /> Pick 20 random
               </button>
               <label className="flex items-center gap-2 text-[13px] cursor-pointer pl-2"
-                     style={{ color: 'var(--color-ink-2)' }}>
+                     style={{ color: 'var(--color-ink-2)' }}
+                     title="Calls /evaluate (fast judge, no tools) — not the full /evaluate/agent. Use Inspect for the tool-using deep evaluation.">
                 <input
                   type="checkbox"
                   checked={includeAgent}
                   onChange={e => setIncludeAgent(e.target.checked)}
                   className="rounded"
                 />
-                Include agent evaluation
+                Include fast agent screen
                 <span className="text-[11px] font-mono"
                       style={{ color: 'var(--color-ink-dim)' }}>
-                  ~${AGENT_USD_PER_CALL.toFixed(2)} ea
+                  ~${AGENT_USD_PER_CALL.toFixed(2)} ea · no tools
                 </span>
               </label>
             </div>
@@ -492,20 +512,6 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
             className="btn-ghost rounded-lg px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
           >
             <Download size={14} /> Export selected as CSV
-          </button>
-          <button
-            onClick={() => {
-              const trusted = displayedRows.filter(r => r.verdict?.recommendation === 'trust').map(r => r.pdb_id);
-              alert(`(mock action) would queue ${trusted.length} systems for assay: ${trusted.join(', ')}`);
-            }}
-            className="rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition-colors"
-            style={{
-              background: 'rgba(78, 192, 122, 0.12)',
-              color: '#4ec07a',
-              border: '1px solid rgba(78, 192, 122, 0.35)',
-            }}
-          >
-            Send only “trust” to assay queue (mock)
           </button>
         </div>
       </GlowCard>

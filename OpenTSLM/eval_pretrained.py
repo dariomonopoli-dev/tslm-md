@@ -127,9 +127,11 @@ def main() -> None:
 
     capture = args.save_generations is not None or args.no_eval_shortcut
 
+    SPLIT_MAP = {"val": "validation", "validation": "validation", "train": "train", "test": "test"}
     for split in args.splits:
+        ds_split = SPLIT_MAP[split]
         print(f"\n=== split: {split} ===")
-        ds = MISATOMDQADataset(split=split, EOS_TOKEN=model.get_eos_token())
+        ds = MISATOMDQADataset(split=ds_split, EOS_TOKEN=model.get_eos_token())
         if args.subset and args.subset < len(ds):
             ds = Subset(ds, list(range(args.subset)))
             print(f"  using subset of {len(ds)} samples")

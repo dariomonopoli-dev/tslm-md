@@ -8,11 +8,13 @@ import { KnowledgeView } from './views/KnowledgeView.tsx';
 import { AboutView } from './views/AboutView.tsx';
 import { Brand } from './components/Brand.tsx';
 import { BackgroundFX } from './components/BackgroundFX.tsx';
+import { api } from './lib/api.ts';
+import type { HealthResponse, Variant } from './types.ts';
 
 type ViewState = 'about' | 'single' | 'batch' | 'failure' | 'knowledge';
-type Variant = 'v1a' | 'v1b';
 
 const DEFAULT_PDB = '1A1B';
+const HEALTH_POLL_MS = 5_000;
 
 const TABS: Array<{ id: ViewState; label: string }> = [
   { id: 'about',     label: 'Overview' },
@@ -27,10 +29,45 @@ export default function App() {
   const [selectedPDB, setSelectedPDB] = useState<string>(DEFAULT_PDB);
   const [variant, setVariant] = useState<Variant>('v1b');
   const [transitionKey, setTransitionKey] = useState(0);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
 
   useEffect(() => {
     setTransitionKey(k => k + 1);
   }, [view]);
+
+  // Poll /health: fast while booting (status !== ready), then back off to
+  // a longer cadence so we still notice transitions to degraded/starting.
+  useEffect(() => {
+    let cancelled = false;
+    let timerId: number | null = null;
+
+    const tick = async () => {
+      const res = await api.health();
+      if (cancelled) return;
+      if (res.ok) {
+        setHealth(res.data);
+        const next = res.data.status === 'ready' ? 30_000 : HEALTH_POLL_MS;
+        timerId = window.setTimeout(tick, next);
+      } else {
+        timerId = window.setTimeout(tick, HEALTH_POLL_MS);
+      }
+    };
+    tick();
+
+    return () => {
+      cancelled = true;
+      if (timerId != null) window.clearTimeout(timerId);
+    };
+  }, []);
+
+  // Once /health reports the loaded variants, switch off any default
+  // that isn't actually available.
+  useEffect(() => {
+    if (!health?.variants_loaded?.length) return;
+    if (!health.variants_loaded.includes(variant)) {
+      setVariant(health.variants_loaded[0] as Variant);
+    }
+  }, [health, variant]);
 
   const goToSingle = (pdb?: string) => {
     if (pdb) setSelectedPDB(pdb);
@@ -61,20 +98,7 @@ export default function App() {
             })}
           </nav>
 
-          <a
-            href="https://github.com"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-[12px] font-mono tracking-wider transition shadow-card"
-            style={{
-              color: 'var(--color-ink-2)',
-              background: '#ffffff',
-              border: '1.5px solid var(--color-line)',
-            }}
-          >
-            <span className="dot-live" />
-            v0.1 · live
-          </a>
+          <HealthPill health={health} />
         </div>
 
         {/* mobile: horizontal pill strip below the brand row */}
@@ -105,6 +129,7 @@ export default function App() {
             <SingleView
               pdb={selectedPDB}
               variant={variant}
+              health={health}
               onPdbChange={setSelectedPDB}
               onVariantChange={setVariant}
             />
@@ -112,6 +137,7 @@ export default function App() {
           {view === 'batch' && (
             <BatchView
               variant={variant}
+              health={health}
               onVariantChange={setVariant}
               onGoToSingle={goToSingle}
             />
@@ -119,11 +145,12 @@ export default function App() {
           {view === 'failure' && (
             <FailureModesView
               variant={variant}
+              health={health}
               onVariantChange={setVariant}
               onGoToSingle={goToSingle}
             />
           )}
-          {view === 'knowledge' && <KnowledgeView />}
+          {view === 'knowledge' && <KnowledgeView health={health} />}
         </div>
       </main>
 
@@ -139,5 +166,56 @@ export default function App() {
         </div>
       </footer>
     </div>
+  );
+}
+
+
+// ---------------------------------------------------------------------------
+// HealthPill — replaces the static "v0.1 · live" tag. Surfaces backend
+// readiness, model + corpus version (audit-ability is the demo's whole point),
+// and remaining-cap spend so users see when the agent is gated.
+// ---------------------------------------------------------------------------
+
+function HealthPill({ health }: { health: HealthResponse | null }) {
+  const status = health?.status ?? 'starting';
+  const dotColor =
+    status === 'ready'   ? '#4ec07a' :
+    status === 'degraded' ? '#f4625f' :
+                            '#FF9900';
+  const spendLine =
+    health?.spend_today_usd != null && health?.remaining_cap_usd != null
+      ? `$${health.spend_today_usd.toFixed(2)} spent · $${health.remaining_cap_usd.toFixed(2)} left`
+      : null;
+  const tooltip = health
+    ? [
+        `status: ${status}`,
+        health.judge_model && `judge: ${health.judge_model}`,
+        health.rag_corpus_version && `corpus: ${health.rag_corpus_version}`,
+        health.inference_backend && `backend: ${health.inference_backend}`,
+        spendLine,
+      ].filter(Boolean).join('\n')
+    : 'connecting to backend…';
+
+  return (
+    <span
+      title={tooltip}
+      className="flex items-center gap-2 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-[12px] font-mono tracking-wider shadow-card"
+      style={{
+        color: 'var(--color-ink-2)',
+        background: '#ffffff',
+        border: '1.5px solid var(--color-line)',
+      }}
+    >
+      <span
+        className="inline-block w-1.5 h-1.5 rounded-full"
+        style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}` }}
+      />
+      <span>{status === 'ready' ? 'live' : status}</span>
+      {health?.inference_backend && (
+        <span className="hidden sm:inline" style={{ color: 'var(--color-ink-dim)' }}>
+          · {health.inference_backend}
+        </span>
+      )}
+    </span>
   );
 }

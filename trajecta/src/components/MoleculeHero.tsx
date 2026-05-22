@@ -114,7 +114,7 @@ export function MoleculeHero({ pdb, className, filmstrip = false }: MoleculeHero
       {showFilmstrip && (
         <img
           key={`${pdb}-${filmFrame}`}
-          src={`/api/frame_image/${encodeURIComponent(pdb)}?frame=${filmFrame}&width=900`}
+          src={api.frameImageUrl(pdb, filmFrame, 900)}
           alt={`${pdb} frame ${filmFrame}`}
           className="absolute inset-0 w-full h-full object-contain opacity-90"
           onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}

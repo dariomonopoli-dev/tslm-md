@@ -6,6 +6,7 @@ import { DarkInput } from '../components/ui.tsx';
 import { GlowCard, CardHeader } from '../components/GlowCard.tsx';
 import type {
   ApiError,
+  HealthResponse,
   KnowledgeSource,
   KnowledgeUploadResponse,
 } from '../types.ts';
@@ -14,7 +15,13 @@ import type {
 const ACCEPT = '.pdf,.docx,.doc,.pptx,.ppt,.xlsx,.xls,.html,.htm,.md,.markdown,.txt,.png,.jpg,.jpeg';
 
 
-export function KnowledgeView() {
+interface KnowledgeViewProps {
+  health: HealthResponse | null;
+}
+
+
+export function KnowledgeView({ health }: KnowledgeViewProps) {
+  void health; // reserved; backend health is informational only here for now
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState('');
   const [pdbIds, setPdbIds] = useState('');

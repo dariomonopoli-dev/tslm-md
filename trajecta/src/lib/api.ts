@@ -149,6 +149,12 @@ export const api = {
     });
   },
 
+  // Same-origin URL for a server-rendered MD frame PNG. Used directly as <img src>.
+  // Goes through BASE so VITE_API_BASE_URL deployments work cross-origin too.
+  frameImageUrl(pdb_id: string, frame: number, width = 600): string {
+    return `${BASE}/frame_image/${encodeURIComponent(pdb_id)}?frame=${frame}&width=${width}`;
+  },
+
   pdbString(
     pdb_id: string,
     opts: { stride?: number; dropWater?: boolean; signal?: AbortSignal } = {},

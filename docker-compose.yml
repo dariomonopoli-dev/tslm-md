@@ -17,6 +17,9 @@ services:
       # Inference backend selection (see .env). 'sagemaker' falls back to
       # boto3.invoke_endpoint and ignores the local CHECKPOINT_DIR mount.
       INFERENCE_BACKEND: ${INFERENCE_BACKEND:-local}
+      # tunnel backend (only read when INFERENCE_BACKEND=tunnel)
+      TUNNEL_URL: ${TUNNEL_URL:-}
+      TUNNEL_TAU_HIGH: ${TUNNEL_TAU_HIGH:-1.5}
       SAGEMAKER_ENDPOINT_NAME: ${SAGEMAKER_ENDPOINT_NAME:-}
       SAGEMAKER_REGION: ${SAGEMAKER_REGION:-us-west-2}
       SAGEMAKER_VARIANTS: ${SAGEMAKER_VARIANTS:-v1a,v1b}

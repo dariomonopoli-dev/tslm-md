@@ -18,7 +18,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import PlainTextResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 load_dotenv()
 
@@ -267,6 +267,25 @@ async def frame_image(pdb_id: str, frame: int = 0, width: int = 600, height: int
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
+async def _parse_eval_body(request: Request) -> EvaluateRequest:
+    """Manually parse the JSON body for rate-limited routes.
+
+    slowapi's @limiter.limit decorator wraps the handler in a way that
+    breaks FastAPI's automatic Pydantic body inference (the inner signature
+    is hidden, so FastAPI falls back to treating `req` as a query param and
+    422s with loc=["query","req"]). We side-step by reading the body
+    directly and validating with Pydantic ourselves.
+    """
+    try:
+        raw = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="body must be valid JSON")
+    try:
+        return EvaluateRequest.model_validate(raw)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors())
+
+
 async def _run_predict_for_eval(req: EvaluateRequest) -> dict:
     """Fetch (or generate) the prediction we're evaluating against.
 
@@ -293,10 +312,11 @@ def _versions(predict_result: dict) -> tuple[str, str, str]:
 
 @app.post("/evaluate")
 @limiter.limit(PREDICT_LIMIT)
-async def evaluate(request: Request, req: EvaluateRequest, force: bool = False):
+async def evaluate(request: Request, force: bool = False):
     from orchestrator import evaluate_fast
     import eval_cache
 
+    req = await _parse_eval_body(request)
     pred = await _run_predict_for_eval(req)
     mv, rcv, jm = _versions(pred)
 
@@ -326,10 +346,11 @@ async def evaluate(request: Request, req: EvaluateRequest, force: bool = False):
 
 @app.post("/evaluate/agent")
 @limiter.limit(AGENT_LIMIT)
-async def evaluate_agent_route(request: Request, req: EvaluateRequest, force: bool = False):
+async def evaluate_agent_route(request: Request, force: bool = False):
     from orchestrator import evaluate_agent as run_agent
     import eval_cache
 
+    req = await _parse_eval_body(request)
     pred = await _run_predict_for_eval(req)
     mv, rcv, jm = _versions(pred)
 

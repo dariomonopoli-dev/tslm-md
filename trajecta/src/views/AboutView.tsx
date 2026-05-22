@@ -200,14 +200,6 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
          ============================================================ */}
       <section className="flex flex-col gap-3 items-center pt-6">
         <span className="rule max-w-[400px]" />
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] font-mono tracking-wider"
-             style={{ color: 'var(--color-ink-dim)' }}>
-          <FooterLink>Authors</FooterLink>
-          <FooterLink>Source code</FooterLink>
-          <FooterLink>Paper draft</FooterLink>
-          <FooterLink accent>PROJECT_BRIEF.md ↗</FooterLink>
-          <FooterLink>Contact</FooterLink>
-        </div>
       </section>
     </div>
   );
@@ -472,13 +464,3 @@ function Guarantee({ n, body }: { n: string; body: string }) {
   );
 }
 
-function FooterLink({ children, accent }: { children: React.ReactNode; accent?: boolean }) {
-  return (
-    <span
-      className="cursor-pointer transition-colors"
-      style={{ color: accent ? 'var(--color-brand)' : 'var(--color-ink-dim)' }}
-    >
-      {children}
-    </span>
-  );
-}

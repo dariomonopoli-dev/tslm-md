@@ -101,9 +101,11 @@ export function Citation({ children }: { children: React.ReactNode }) {
 
 interface AgentTraceProps {
   steps: Array<{ tool: string; result: string }>;
+  latencyMs?: number;
+  usd?: number;
 }
 
-export function AgentTrace({ steps }: AgentTraceProps) {
+export function AgentTrace({ steps, latencyMs, usd }: AgentTraceProps) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -122,7 +124,9 @@ export function AgentTrace({ steps }: AgentTraceProps) {
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         <span>Agent trace</span>
         <span className="font-mono text-[11px]" style={{ color: 'var(--color-ink-dim)' }}>
-          · {steps.length} steps · 18s · $0.22
+          · {steps.length} steps
+          {latencyMs != null && ` · ${(latencyMs / 1000).toFixed(1)}s`}
+          {usd != null && ` · $${usd.toFixed(2)}`}
         </span>
         <span
           className="ml-auto inline-block w-1.5 h-1.5 rounded-full"

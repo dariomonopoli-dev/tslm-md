@@ -12,7 +12,6 @@ import { StructureViewer } from '../components/StructureViewer.tsx';
 import { GlowCard, CardHeader } from '../components/GlowCard.tsx';
 import { AnimatedNumber } from '../components/AnimatedNumber.tsx';
 import { api } from '../lib/api.ts';
-import { MOCK_CHART_DATA } from '../data.ts';
 import type {
   ApiError,
   ChannelFrame,
@@ -28,6 +27,7 @@ import type {
 interface SingleViewProps {
   pdb: string;
   variant: Variant;
+  health: HealthResponse | null;
   onPdbChange: (pdb: string) => void;
   onVariantChange: (v: Variant) => void;
 }
@@ -42,9 +42,8 @@ function statusToMark(s: VerifierClaim['status']): 'pass' | 'fail' | 'warn' {
 const ESTIMATED_AGENT_COST_USD = 0.30;
 
 
-export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: SingleViewProps) {
+export function SingleView({ pdb, variant, health, onPdbChange, onVariantChange }: SingleViewProps) {
   const [pdbIds, setPdbIds] = useState<string[]>([]);
-  const [health, setHealth] = useState<HealthResponse | null>(null);
   const [pdbSearchOpen, setPdbSearchOpen] = useState(false);
   const [pdbFilter, setPdbFilter] = useState('');
 
@@ -65,34 +64,35 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
 
   const [channels, setChannels] = useState<ChannelFrame[] | null>(null);
 
-  // Mount: pdb list + health
+  // Mount: pdb list. /health is owned by App.tsx and passed in via props.
+  // In tunnel mode, /pdb_ids returns [] for empty q — defer the initial fetch
+  // until the user actually opens the picker and types something.
+  const isTunnel = health?.inference_backend === 'tunnel';
   useEffect(() => {
+    if (isTunnel) return;
     let cancelled = false;
     (async () => {
-      const [idsRes, healthRes] = await Promise.all([
-        api.pdbIds({ limit: 50 }),
-        api.health(),
-      ]);
+      const res = await api.pdbIds({});
       if (cancelled) return;
-      if (idsRes.ok) setPdbIds(idsRes.data);
-      if (healthRes.ok) setHealth(healthRes.data);
+      if (res.ok) setPdbIds(res.data);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [isTunnel]);
 
-  // Picker autocomplete
+  // Picker autocomplete (also doubles as the initial fetch in tunnel mode).
   useEffect(() => {
     if (!pdbSearchOpen) return;
+    if (isTunnel && !pdbFilter) return;
     const controller = new AbortController();
     const t = setTimeout(async () => {
-      const res = await api.pdbIds({ q: pdbFilter, limit: 50, signal: controller.signal });
+      const res = await api.pdbIds({ q: pdbFilter, signal: controller.signal });
       if (res.ok) setPdbIds(res.data);
     }, 250);
     return () => {
       clearTimeout(t);
       controller.abort();
     };
-  }, [pdbFilter, pdbSearchOpen]);
+  }, [pdbFilter, pdbSearchOpen, isTunnel]);
 
   // Reset stale results on PDB/variant change
   useEffect(() => {
@@ -250,7 +250,11 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
                   style={{ color: 'var(--color-ink-dim)' }}>
               Variant
             </span>
-            <Segmented value={variant} options={['v1a', 'v1b'] as const} onChange={onVariantChange} />
+            <Segmented
+              value={variant}
+              options={(health?.variants_loaded?.length ? health.variants_loaded : ['v1a', 'v1b']) as readonly Variant[]}
+              onChange={onVariantChange}
+            />
           </div>
 
           <div className="ml-auto flex items-center gap-3">
@@ -324,9 +328,6 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
 
       {/* ---------- Action row ---------- */}
       <div className="flex flex-wrap gap-3 fx-fade-up" style={{ animationDelay: '220ms' }}>
-        <button className="btn-ghost rounded-lg px-4 py-2 text-sm flex items-center gap-2">
-          Show baselines <ChevronDown size={14} className="opacity-50" />
-        </button>
         <button
           onClick={() => onVariantChange(variant === 'v1a' ? 'v1b' : 'v1a')}
           className="btn-ghost rounded-lg px-4 py-2 text-sm flex items-center gap-2"
@@ -462,6 +463,11 @@ function PredictionCard({ prediction }: { prediction: PredictResponse | null }) 
         <span className="font-mono text-xs" style={{ color: 'var(--color-ink-dim)' }}>
           {prediction?.model_version ?? '—'}
         </span>
+
+        <Label>Latency</Label>
+        <span className="font-mono text-xs" style={{ color: 'var(--color-ink-dim)' }}>
+          {prediction?.latency_ms != null ? `${prediction.latency_ms} ms` : '—'}
+        </span>
       </div>
       {prediction?.verdict_reason && (
         <div className="px-5 py-3 text-xs italic border-t"
@@ -575,7 +581,7 @@ function StructurePanel({
   const [mode, setMode] = useState<'image' | 'live'>('live');
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const mdFrame = Math.max(0, Math.min(currentFrame, 99));
-  const imgSrc = `/api/frame_image/${encodeURIComponent(pdb)}?frame=${mdFrame}&width=600`;
+  const imgSrc = api.frameImageUrl(pdb, mdFrame, 600);
 
   return (
     <GlowCard className="h-[380px] flex flex-col">
@@ -698,37 +704,46 @@ function ChannelsPanel({ channels, currentFrame, nFrames }: { channels: ChannelF
         Per-frame channels
       </CardHeader>
       <div className="p-4 flex-1 min-h-[240px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={channels ?? MOCK_CHART_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-            <defs>
-              <linearGradient id="rmsdStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%"  stopColor="#f4625f" />
-                <stop offset="100%" stopColor="#FF9900" />
-              </linearGradient>
-              <linearGradient id="energyStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%"  stopColor="#5467F2" />
-                <stop offset="100%" stopColor="#8a96f5" />
-              </linearGradient>
-              <linearGradient id="bsasaStroke" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%"  stopColor="#8a96f5" />
-                <stop offset="100%" stopColor="#4ec07a" />
-              </linearGradient>
-            </defs>
-            <ReferenceLine x={currentFrame} stroke="#5467F2" strokeOpacity={0.7} strokeWidth={1.2} />
-            <Line type="monotone" yAxisId="rmsd"   dataKey="rmsd"   stroke="url(#rmsdStroke)"   dot={false} strokeWidth={1.6} />
-            <Line type="monotone" yAxisId="energy" dataKey="energy" stroke="url(#energyStroke)" dot={false} strokeWidth={1.6} />
-            <Line type="monotone" yAxisId="bsasa"  dataKey="bsasa"  stroke="url(#bsasaStroke)"  dot={false} strokeWidth={1.6} />
-            <YAxis yAxisId="rmsd"   hide domain={['dataMin - 0.2', 'dataMax + 0.2']} />
-            <YAxis yAxisId="energy" hide domain={['dataMin - 5',   'dataMax + 5']} />
-            <YAxis yAxisId="bsasa"  hide domain={['dataMin - 20',  'dataMax + 20']} />
-          </LineChart>
-        </ResponsiveContainer>
-        <div className="flex gap-4 mt-2 justify-center text-[11px] font-mono">
-          <span style={{ color: '#f4625f' }}>── RMSD</span>
-          <span style={{ color: '#5467F2' }}>── energy</span>
-          <span style={{ color: '#8a96f5' }}>── bSASA</span>
-          {!channels && <span className="italic" style={{ color: 'var(--color-ink-dim)' }}>(channels endpoint loading…)</span>}
-        </div>
+        {!channels && (
+          <div className="h-full flex items-center justify-center text-xs font-mono italic"
+               style={{ color: 'var(--color-ink-dim)' }}>
+            channels unavailable for this PDB
+          </div>
+        )}
+        {channels && (
+          <>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={channels} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                <defs>
+                  <linearGradient id="rmsdStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%"  stopColor="#f4625f" />
+                    <stop offset="100%" stopColor="#FF9900" />
+                  </linearGradient>
+                  <linearGradient id="energyStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%"  stopColor="#5467F2" />
+                    <stop offset="100%" stopColor="#8a96f5" />
+                  </linearGradient>
+                  <linearGradient id="bsasaStroke" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0%"  stopColor="#8a96f5" />
+                    <stop offset="100%" stopColor="#4ec07a" />
+                  </linearGradient>
+                </defs>
+                <ReferenceLine x={currentFrame} stroke="#5467F2" strokeOpacity={0.7} strokeWidth={1.2} />
+                <Line type="monotone" yAxisId="rmsd"   dataKey="rmsd"   stroke="url(#rmsdStroke)"   dot={false} strokeWidth={1.6} />
+                <Line type="monotone" yAxisId="energy" dataKey="energy" stroke="url(#energyStroke)" dot={false} strokeWidth={1.6} />
+                <Line type="monotone" yAxisId="bsasa"  dataKey="bsasa"  stroke="url(#bsasaStroke)"  dot={false} strokeWidth={1.6} />
+                <YAxis yAxisId="rmsd"   hide domain={['dataMin - 0.2', 'dataMax + 0.2']} />
+                <YAxis yAxisId="energy" hide domain={['dataMin - 5',   'dataMax + 5']} />
+                <YAxis yAxisId="bsasa"  hide domain={['dataMin - 20',  'dataMax + 20']} />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="flex gap-4 mt-2 justify-center text-[11px] font-mono">
+              <span style={{ color: '#f4625f' }}>── RMSD</span>
+              <span style={{ color: '#5467F2' }}>── energy</span>
+              <span style={{ color: '#8a96f5' }}>── bSASA</span>
+            </div>
+          </>
+        )}
       </div>
     </GlowCard>
   );
@@ -816,7 +831,7 @@ function AgentVerdictPanel({
               style={{ color: 'var(--color-ink)' }}>
           Independent agent verdict
         </span>
-        {v.cached && (
+        {agent.cached && (
           <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full"
                 style={{
                   background: 'rgba(78, 192, 122, 0.12)',
@@ -842,10 +857,13 @@ function AgentVerdictPanel({
         ))}
       </div>
 
-      <AgentTrace steps={agent.trace.map((s: TraceStep) => ({
-        tool: s.tool,
-        result: typeof s.result === 'string' ? s.result : JSON.stringify(s.result).slice(0, 160),
-      }))} />
+      <AgentTrace
+        latencyMs={v.agent_trace.latency_ms}
+        steps={agent.trace.map((s: TraceStep) => ({
+          tool: s.tool,
+          result: typeof s.result === 'string' ? s.result : JSON.stringify(s.result).slice(0, 160),
+        }))}
+      />
 
       {v.citations.length > 0 && (
         <div className="relative mt-7 text-sm">

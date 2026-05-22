@@ -27,7 +27,7 @@ accelerate>=0.34,<2
 h5py>=3.11,<4
 numpy>=2.0,<3
 mdanalysis>=2.7,<3
-rdkit-pypi>=2024.3
+rdkit>=2024.3
 scikit-learn>=1.5,<2
 
 # Vina ligand prep

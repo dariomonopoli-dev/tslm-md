@@ -4,20 +4,34 @@ import { ChevronDown, Loader2, TriangleAlert } from 'lucide-react';
 import { api } from '../lib/api.ts';
 import { RecommendationPill } from '../components/ui.tsx';
 import { GlowCard, CardHeader } from '../components/GlowCard.tsx';
-import type { ApiError, FailureModesResponse, Variant } from '../types.ts';
+import type { ApiError, FailureModesResponse, HealthResponse, Variant } from '../types.ts';
 
 
 interface FailureModesViewProps {
   variant: Variant;
+  health: HealthResponse | null;
   onVariantChange: (v: Variant) => void;
   onGoToSingle: (pdb: string) => void;
 }
 
 
-export function FailureModesView({ variant, onGoToSingle }: FailureModesViewProps) {
+type SortKey = 'delta' | 'model' | 'pdb';
+
+export function FailureModesView({ variant, health, onGoToSingle }: FailureModesViewProps) {
+  void health; // currently unused; reserved for cross-view consistency
   const [data, setData] = useState<FailureModesResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
+  const [sortBy, setSortBy] = useState<SortKey>('delta');
+
+  const sortedRows = data
+    ? [...data.rows].sort((a, b) => {
+        if (sortBy === 'pdb') return a.pdb.localeCompare(b.pdb);
+        if (sortBy === 'model') return b.model - a.model;
+        // 'delta': |model - mmgbsa| desc
+        return Math.abs(b.model - b.mmgbsa) - Math.abs(a.model - a.mmgbsa);
+      })
+    : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -93,8 +107,16 @@ export function FailureModesView({ variant, onGoToSingle }: FailureModesViewProp
           {data && (
             <>
               <div className="flex items-center mb-4 text-sm">
-                <button className="btn-ghost rounded-lg px-2.5 py-1 text-[12px] flex items-center gap-1.5">
-                  Sort: |model − mmgbsa| <ChevronDown size={12} />
+                <button
+                  onClick={() => {
+                    const next: SortKey =
+                      sortBy === 'delta' ? 'model' : sortBy === 'model' ? 'pdb' : 'delta';
+                    setSortBy(next);
+                  }}
+                  className="btn-ghost rounded-lg px-2.5 py-1 text-[12px] flex items-center gap-1.5"
+                >
+                  Sort: {sortBy === 'delta' ? '|model − mmgbsa|' : sortBy === 'model' ? 'model pK' : 'PDB'}
+                  <ChevronDown size={12} />
                 </button>
                 <span className="ml-auto text-[11px] font-mono"
                       style={{ color: 'var(--color-ink-dim)' }}>
@@ -116,7 +138,7 @@ export function FailureModesView({ variant, onGoToSingle }: FailureModesViewProp
                     </tr>
                   </thead>
                   <tbody className="font-mono text-[13px]">
-                    {data.rows.map((row, i) => (
+                    {(sortedRows ?? data.rows).map((row, i) => (
                       <tr
                         key={row.pdb}
                         onClick={() => onGoToSingle(row.pdb)}

@@ -94,13 +94,15 @@ export interface BatchPredictResponse {
 }
 
 export interface HealthResponse {
-  status: 'ready' | 'starting';
+  status: 'ready' | 'starting' | 'degraded';
   variants_loaded: string[];
   warm_since: string | null;
   rag_corpus_version: string;
   judge_model: string;
   spend_today_usd?: number;
   remaining_cap_usd?: number;
+  inference_backend?: 'local' | 'sagemaker' | 'tunnel' | string;
+  sagemaker?: { endpoint_name?: string; region?: string } | null;
 }
 
 export interface VerdictScores {
@@ -143,6 +145,7 @@ export interface TraceStep {
 export interface EvaluateAgentResponse {
   verdict: Verdict;
   trace: TraceStep[];
+  cached?: boolean;
 }
 
 export interface FailureModesResponse {
