@@ -1,0 +1,12 @@
+# Extra deps for the SageMaker PyTorch DLC.
+# Torch is already in the base image; pin everything else.
+transformers>=4.57,<5
+peft>=0.18,<0.20
+accelerate>=0.34,<2
+huggingface_hub>=0.24,<1
+numpy>=2.0,<3
+h5py>=3.11,<4
+
+# OpenTSLM from source. Pin a commit SHA once you have one you trust.
+# Public repo, so install-time fetch is fine.
+git+https://github.com/StanfordBDHG/OpenTSLM.git@main

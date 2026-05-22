@@ -1,0 +1,85 @@
+# MoleMotion stack — frontend (nginx) + inference (FastAPI + embedded ChromaDB).
+# ChromaDB runs in-process inside the inference container (PersistentClient mode)
+# so the demo stays at two services. Switch to a separate `chroma` service if
+# you want to share the corpus across multiple inference replicas.
+
+services:
+  inference:
+    build:
+      context: .
+      dockerfile: inference-service/Dockerfile
+    image: molemotion/inference:dev
+    container_name: molemotion-inference
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Inference backend selection (see .env). 'sagemaker' falls back to
+      # boto3.invoke_endpoint and ignores the local CHECKPOINT_DIR mount.
+      INFERENCE_BACKEND: ${INFERENCE_BACKEND:-local}
+      SAGEMAKER_ENDPOINT_NAME: ${SAGEMAKER_ENDPOINT_NAME:-}
+      SAGEMAKER_REGION: ${SAGEMAKER_REGION:-us-west-2}
+      SAGEMAKER_VARIANTS: ${SAGEMAKER_VARIANTS:-v1a,v1b}
+      SAGEMAKER_PARALLEL: ${SAGEMAKER_PARALLEL:-4}
+      SAGEMAKER_ASYNC: ${SAGEMAKER_ASYNC:-0}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN:-}
+      # Paths inside the container — match the Dockerfile's volume mounts
+      CHECKPOINT_DIR: /app/checkpoints
+      MISATO_HDF5_PATH: /app/data/MD.hdf5
+      MISATO_MAPS_DIR: /app/data/Maps
+      TEST_SPLIT_PATH: /app/data/test_MD.txt
+      TRAIN_SPLIT_PATH: /app/data/train_MD.txt
+      VAL_SPLIT_PATH: /app/data/val_MD.txt
+      AFFINITY_CSV_PATH: /app/data/affinity_src/affinity_data.csv
+      LIGAND_SMILES_CSV: /app/data/affinity_src/ligand_smiles.csv
+      MISATO_SAMPLES_TEST: /app/data/preprocessed/samples_test.jsonl
+      CHROMA_PATH: /app/data/chroma
+      EVAL_CACHE_PATH: /app/data/eval_cache.jsonl
+      SPEND_LOG_PATH: /app/data/spend_log.jsonl
+      VINA_CACHE_DIR: /app/data/vina_cache
+      PDB_STRING_CACHE: /app/data/pdb_string_cache
+      EMBEDDING_CACHE_DIR: /app/data/embedding_cache
+      INGEST_ROOT: /app/data/ingest_sources
+    volumes:
+      # Trained checkpoints (read-only)
+      - ./checkpoints:/app/checkpoints:ro
+      # MISATO Maps (residueMap, typeMap, nameMap) + splits + affinity csv
+      - ./misato-affinity/data/Maps:/app/data/Maps:ro
+      - ./misato-affinity/data:/app/data/affinity_src:ro
+      # MISATO HDF5 trajectory (124 GB; read-only)
+      - ./MD.hdf5:/app/data/MD.hdf5:ro
+      # Preprocessed samples for the regex verifier facts lookup
+      - ./preprocessed:/app/data/preprocessed:ro
+      # Persistent demo state (Chroma, eval cache, spend log, vina cache, etc.)
+      - inference_data:/app/data
+      # Ingest sources for `make ingest`
+      - .:/app/data/ingest_sources:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    build:
+      context: molemotion
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    image: molemotion/frontend:dev
+    container_name: molemotion-frontend
+    restart: unless-stopped
+    depends_on:
+      inference:
+        condition: service_healthy
+    ports:
+      - "3000:80"
+
+volumes:
+  inference_data:
+    name: molemotion_inference_data

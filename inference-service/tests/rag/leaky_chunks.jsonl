@@ -1,0 +1,20 @@
+{"pdb_id": "1A1B", "text": "PDB 1A1B: target protein kinase, ligand inhibitor A. Kd = 320 nM.", "kind": "kd_nM"}
+{"pdb_id": "1A28", "text": "Compound bound to 1A28 with Ki of 2.1 µM under standard buffer conditions.", "kind": "ki_uM"}
+{"pdb_id": "1B6H", "text": "1B6H complex showed an IC50 of 45 nM in the enzymatic assay reported by Smith et al.", "kind": "ic50_nM"}
+{"pdb_id": "2X3K", "text": "Reported pKi = 7.4 for the cocrystal 2X3K (Brown 2019).", "kind": "pKi"}
+{"pdb_id": "1F0R", "text": "Affinity measurements on 1F0R: Kd 1.2e-7 M.", "kind": "kd_scientific"}
+{"pdb_id": "1KE5", "text": "1KE5: pIC50 of 6.85 across three replicates.", "kind": "pIC50"}
+{"pdb_id": "1NHU", "text": "Binding affinity of 12 nM was reported for the 1NHU complex.", "kind": "binding_affinity_phrase"}
+{"pdb_id": "1QPE", "text": "1QPE crystal structure with bound inhibitor; Ki = 8.5 nM.", "kind": "ki_nM"}
+{"pdb_id": "1G2K", "text": "For 1G2K we observed Kd of 4 µM in surface plasmon resonance.", "kind": "kd_uM"}
+{"pdb_id": "1A30", "text": "The 1A30 complex Ki value was determined as 100 pM.", "kind": "ki_pM"}
+{"pdb_id": "2BR1", "text": "2BR1 IC50: 320 mM (poor inhibitor).", "kind": "ic50_mM"}
+{"pdb_id": "1F0S", "text": "Lowercase entry 1f0s with Kd = 50 nM after warmup.", "kind": "lowercase_pdb"}
+{"pdb_id": "4HHB", "text": "4HHB hemoglobin binding: pK 6.1 in CO2-saturated conditions.", "kind": "pK_short"}
+{"pdb_id": "1RPE", "text": "Compound 1RPE showed dose-dependent inhibition with EC50 of 80 nM.", "kind": "ec50"}
+{"pdb_id": "1F8B", "text": "The 1F8B mutant retains Kb = 1.5 µM.", "kind": "kb_uM"}
+{"pdb_id": "1A1B", "text": "1A1B mentioned alongside 2X3K with Kd = 320 nM (same target family).", "kind": "co_mention_first"}
+{"pdb_id": "2X3K", "text": "1A1B mentioned alongside 2X3K with Kd = 320 nM (same target family).", "kind": "co_mention_second"}
+{"pdb_id": "1MZK", "text": "1MZK: equilibrium dissociation constant Kd of 90 nM reported.", "kind": "kd_with_full_name"}
+{"pdb_id": "2P2N", "text": "We measured Ki: 12.4 nM for 2P2N in our isothermal calorimetry run.", "kind": "ki_colon"}
+{"pdb_id": "1ZZB", "text": "1ZZB cocrystal structure; binding affinity of 200 µM (weak binder).", "kind": "binding_affinity_uM"}

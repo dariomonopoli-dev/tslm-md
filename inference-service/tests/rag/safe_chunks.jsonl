@@ -1,0 +1,10 @@
+{"pdb_id": "1A1B", "text": "1A1B: kinase ATP-binding pocket, Lys-145 conserved across the family.", "kind": "structure_only"}
+{"pdb_id": "1A28", "text": "Conformational state of 1A28 shows the open form. Kd value not reported in this paper.", "kind": "kd_not_reported"}
+{"pdb_id": "1B6H", "text": "We discuss the 1B6H crystal contacts and pocket volume.", "kind": "no_numbers"}
+{"pdb_id": "2X3K", "text": "Near the Kd region of the binding pocket, the ligand makes an H-bond with Tyr-300.", "kind": "kd_region_phrase"}
+{"pdb_id": "1F0R", "text": "The 1F0R structure was used as a template for homology modeling.", "kind": "structure_template"}
+{"pdb_id": "1KE5", "text": "1KE5 belongs to the Family A GPCRs and shares 35% sequence identity with 1A1B.", "kind": "family_context"}
+{"pdb_id": "1NHU", "text": "Pocket residence fraction in 1NHU was high based on the trajectory plot.", "kind": "trajectory_observation"}
+{"pdb_id": "1QPE", "text": "RMSD of the 1QPE ligand stayed under 2.5 A throughout the MD.", "kind": "rmsd_observation"}
+{"pdb_id": "1G2K", "text": "1G2K shows multiple binding clusters; the largest covers 60% of frames.", "kind": "cluster_obs"}
+{"pdb_id": "1A30", "text": "Two-point H-bond network in 1A30 with Asp-200 and Ser-201.", "kind": "hbond_obs"}

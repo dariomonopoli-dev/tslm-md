@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.local
+data/chroma/
+data/eval_cache.jsonl
+data/spend_log.jsonl
+*.hdf5
+checkpoints/
+.git/
+.gitignore
+tests/

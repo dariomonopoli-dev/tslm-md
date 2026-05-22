@@ -1,6 +1,10 @@
-# Preprocessed binary data (ships via S3, not git)
-preprocessed/
+# baselines.json — training-run scratch output
 baselines.json
+
+# preprocessed/ + preprocessed_v2/ are now committed (~130 MB total) so the
+# SageMaker deploy bundle can pull them from the repo. MD.hdf5 (124 GB) is
+# still gitignored below — the npz/jsonl files in preprocessed/ are the
+# distilled inputs the model actually trained on.
 
 # Source datasets (too large, downloaded separately)
 MD.hdf5
@@ -20,8 +24,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 
-# OpenTSLM upstream git history (preserved locally; not in this repo)
+# OpenTSLM + molemotion came with their own inner .git directories; we keep
+# them as plain files in this repo and stash the original .git as .git.bak/
+# so the upstream history is recoverable without polluting our history.
 OpenTSLM/.git.bak/
+molemotion/.git.bak/
 
 # Separate frontend project (its own repo, not part of training pipeline)
 website/
