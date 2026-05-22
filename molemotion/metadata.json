@@ -1,0 +1,6 @@
+{
+  "name": "MD-Trajectory Affinity",
+  "description": "An auditable AI triage layer for predicting protein-ligand binding affinity from MD trajectories.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
