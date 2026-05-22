@@ -1,0 +1,101 @@
+{
+  "version": "v2",
+  "channel_order": [
+    "rmsd_ligand",
+    "interaction_energy",
+    "distance",
+    "bSASA",
+    "pocket_rmsd",
+    "ligand_rgyr",
+    "min_contact_distance",
+    "n_contacts_4A",
+    "n_polar_contacts_35A",
+    "n_hydrophobic_contacts_45A",
+    "ligand_internal_rmsd",
+    "com_dist_velocity"
+  ],
+  "n_channels": 12,
+  "n_frames": 100,
+  "clip_bounds": {
+    "rmsd_ligand": [
+      0.0,
+      50.0
+    ],
+    "interaction_energy": [
+      -500.0,
+      50.0
+    ],
+    "distance": [
+      0.0,
+      50.0
+    ],
+    "bSASA": [
+      0.0,
+      2500.0
+    ],
+    "pocket_rmsd": [
+      0.0,
+      10.0
+    ],
+    "ligand_rgyr": [
+      0.0,
+      25.0
+    ],
+    "min_contact_distance": [
+      0.0,
+      20.0
+    ],
+    "n_contacts_4A": [
+      0.0,
+      1000.0
+    ],
+    "n_polar_contacts_35A": [
+      0.0,
+      50.0
+    ],
+    "n_hydrophobic_contacts_45A": [
+      0.0,
+      500.0
+    ],
+    "ligand_internal_rmsd": [
+      0.0,
+      10.0
+    ],
+    "com_dist_velocity": [
+      0.0,
+      5.0
+    ]
+  },
+  "pocket_radius_a": 8.0,
+  "contact_thresholds_a": {
+    "close": 4.0,
+    "polar": 3.5,
+    "hydrophobic": 4.5
+  },
+  "label_correction": {
+    "rule": "Cheng-Prusoff under [S]\u2248Km",
+    "offset_pK_ic50": 0.3010299956639812,
+    "priority": "Kd > Ki > IC50(corrected)"
+  },
+  "counts": {
+    "train": 13758,
+    "val": 1595,
+    "test": 1612
+  },
+  "label_source_counts_train": {
+    "Kd": 4211,
+    "Ki": 3665,
+    "IC50_CP": 5882
+  },
+  "label_source_counts_val": {
+    "Kd": 1025,
+    "Ki": 320,
+    "IC50_CP": 250
+  },
+  "label_source_counts_test": {
+    "Kd": 997,
+    "Ki": 303,
+    "IC50_CP": 312
+  },
+  "skipped": []
+}

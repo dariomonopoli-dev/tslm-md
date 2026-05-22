@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.env
+data/chroma/
+data/eval_cache.jsonl
+data/spend_log.jsonl
+data/embedding_cache/
+checkpoints/
+*.hdf5

@@ -1,16 +1,20 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.Python
-*.egg-info/
-build/
-dist/
+# baselines.json — training-run scratch output
+baselines.json
 
-# venvs
-.venv/
-venv/
-env/
+# preprocessed/ + preprocessed_v2/ are now committed (~130 MB total) so the
+# SageMaker deploy bundle can pull them from the repo. MD.hdf5 (124 GB) is
+# still gitignored below — the npz/jsonl files in preprocessed/ are the
+# distilled inputs the model actually trained on.
+
+# Source datasets (too large, downloaded separately)
+MD.hdf5
+*.hdf5
+*.h5
+QM*.hdf5
+
+# Reference repos (clone separately if needed for re-preprocessing)
+misato-affinity/
+misato-dataset-master/
 
 # Heavy artefacts (never commit)
 data/*
@@ -27,23 +31,41 @@ results/
 *.pt
 *.bin
 *.safetensors
-*.hdf5
-*.h5
 
-# IDE
-.vscode/
-.idea/
-*.swp
+# Python env
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
 .ipynb_checkpoints/
 
-# OS
+# OpenTSLM + molemotion came with their own inner .git directories; we keep
+# them as plain files in this repo and stash the original .git as .git.bak/
+# so the upstream history is recoverable without polluting our history.
+OpenTSLM/.git.bak/
+molemotion/.git.bak/
+
+# Separate frontend project (its own repo, not part of training pipeline)
+website/
+
+# OS / editor cruft
 .DS_Store
 Thumbs.db
+.idea/
+.vscode/
+*.swp
 
-# Caches
+# HF / model caches
 .cache/
-.mypy_cache/
-.pytest_cache/
 
 # Streamlit
 .streamlit/secrets.toml
@@ -51,3 +73,7 @@ Thumbs.db
 # Local env
 .env
 .env.local
+
+# Local run outputs
+runs/
+*.log

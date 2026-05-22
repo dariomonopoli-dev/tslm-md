@@ -1,0 +1,548 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist", "Inter", system-ui, ui-sans-serif, sans-serif;
+  --font-display: "Poppins", "Geist", system-ui, sans-serif;
+  --font-serif: "Fraunces", "Iowan Old Style", "Times New Roman", serif;
+  --font-mono: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* ---------- pitch-deck palette ---------- */
+  --color-bg: #ffffff;
+  --color-bg-elev: #fafbfd;
+  --color-bg-card: #ffffff;
+  --color-bg-soft: #f3f5fb;
+  --color-bg-panel2: #eef1fa;
+  --color-bg-tinted: #eef1fd;
+
+  --color-line: #e2e5f0;
+  --color-line-strong: #c7ccdb;
+
+  --color-ink: #14162b;
+  --color-ink-2: #2a2f4a;
+  --color-ink-mute: #6a7088;
+  --color-ink-dim: #9a9fb3;
+  --color-ink-faint: #b9bdcc;
+
+  --color-brand: #5467F2;
+  --color-brand-soft: #8a96f5;
+  --color-brand-tint: #eef1fd;
+  --color-brand-deep: #3a4cd6;
+  --color-navy: #262C4E;
+  --color-mol-stroke: #9aa0b8;
+
+  --color-ok: #4ec07a;
+  --color-ok-bg: #e8f6ee;
+  --color-warn: #f4625f;
+  --color-warn-bg: #fde8e7;
+  --color-amber: #FF9900;
+  --color-amber-bg: #fff3df;
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-soft: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* -------------------------------------------------------------------
+   Base — editorial scientific
+   ------------------------------------------------------------------- */
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv01", "cv11";
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+::selection {
+  background: rgba(84, 103, 242, 0.22);
+  color: var(--color-ink);
+}
+
+:focus-visible {
+  outline: 1.5px solid var(--color-brand);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb {
+  background: var(--color-line-strong);
+  border-radius: 999px;
+  border: 2px solid var(--color-bg);
+}
+*::-webkit-scrollbar-thumb:hover { background: var(--color-ink-dim); }
+
+input[type="checkbox"] { accent-color: var(--color-brand); }
+
+/* serif italic emphasis — used inline for "structure hides" etc. */
+.serif {
+  font-family: var(--font-serif);
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+/* small-caps editorial eyebrow */
+.eyebrow {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-brand);
+}
+
+/* numeric editorial section id like "01 / OVERVIEW" */
+.sec-id {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-ink-dim);
+}
+
+.sec-id .num {
+  color: var(--color-brand);
+  font-variant-numeric: tabular-nums;
+}
+
+/* monospace stamp */
+.stamp {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-ink-dim);
+}
+
+/* -------------------------------------------------------------------
+   Keyframes
+   ------------------------------------------------------------------- */
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); filter: blur(6px); }
+  to   { opacity: 1; transform: translateY(0);   filter: blur(0);    }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes fadeInSoft {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes drift {
+  0%   { transform: translate3d(-3%, -2%, 0); }
+  50%  { transform: translate3d( 4%,  3%, 0); }
+  100% { transform: translate3d(-3%, -2%, 0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+@keyframes pulseDot {
+  0%,100% { box-shadow: 0 0 0 0 rgba(84, 103, 242, 0.45); }
+  50%     { box-shadow: 0 0 0 6px rgba(84, 103, 242, 0); }
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes drawIn {
+  from { stroke-dashoffset: var(--len, 800); }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes ruleDraw {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
+@keyframes wob {
+  0%,100% { transform: translate(0,0) rotate(0); }
+  50%     { transform: translate(5px,-3px) rotate(4deg); }
+}
+
+@keyframes gradientShift {
+  0%,100% { background-position:   0% 50%; }
+  50%     { background-position: 100% 50%; }
+}
+
+@keyframes orbit         { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+@keyframes orbitReverse  { from { transform: rotate(360deg); } to { transform: rotate(0); } }
+
+/* -------------------------------------------------------------------
+   Animation utilities
+   ------------------------------------------------------------------- */
+
+.fx-fade-in   { animation: fadeIn 700ms var(--ease-out-expo) both; }
+.fx-fade-up   { animation: fadeUp 800ms var(--ease-out-expo) both; }
+.fx-fade-soft { animation: fadeInSoft 500ms ease-out both; }
+.fx-rise      { animation: rise 500ms var(--ease-out-expo) both; }
+.fx-rule-draw { transform-origin: left center; animation: ruleDraw 800ms var(--ease-out-expo) both; }
+
+.fx-stagger > *      { animation: fadeUp 800ms var(--ease-out-expo) both; opacity: 0; }
+.fx-stagger > *:nth-child(1) { animation-delay:  40ms; }
+.fx-stagger > *:nth-child(2) { animation-delay: 120ms; }
+.fx-stagger > *:nth-child(3) { animation-delay: 200ms; }
+.fx-stagger > *:nth-child(4) { animation-delay: 280ms; }
+.fx-stagger > *:nth-child(5) { animation-delay: 360ms; }
+.fx-stagger > *:nth-child(6) { animation-delay: 440ms; }
+.fx-stagger > *:nth-child(7) { animation-delay: 520ms; }
+.fx-stagger > *:nth-child(8) { animation-delay: 600ms; }
+
+/* -------------------------------------------------------------------
+   Editorial gradient text
+   ------------------------------------------------------------------- */
+
+.text-gradient {
+  background: linear-gradient(100deg, #14162b 0%, #5467F2 50%, #14162b 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+  animation: gradientShift 22s ease-in-out infinite;
+}
+
+.text-brand-grad,
+.text-gradient-cool {
+  background: linear-gradient(120deg, #5467F2, #8a96f5);
+  -webkit-background-clip: text;
+          background-clip: text;
+  color: transparent;
+}
+
+/* -------------------------------------------------------------------
+   Card primitives — printed specimen sheet
+   ------------------------------------------------------------------- */
+
+.panel {
+  background: var(--color-bg-card);
+  border: 1.5px solid var(--color-line);
+  border-radius: 10px;
+}
+
+.panel-soft {
+  background: var(--color-bg-soft);
+  border: 1.5px solid var(--color-line);
+  border-radius: 10px;
+}
+
+.panel-tint {
+  background: var(--color-brand-tint);
+  border: 2px solid var(--color-brand);
+  border-radius: 10px;
+}
+
+.glass {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px solid var(--color-line);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+.glass-strong {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1.5px solid var(--color-line);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+}
+
+/* Corner ticks — architectural ornament. Apply to any container. */
+.ticks {
+  position: relative;
+}
+.ticks::before,
+.ticks::after,
+.ticks > .tick-tr,
+.ticks > .tick-bl {
+  content: "";
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--color-brand);
+  border-style: solid;
+  pointer-events: none;
+}
+.ticks::before { top: -1px; left: -1px;     border-width: 1.5px 0 0 1.5px; }
+.ticks::after  { bottom: -1px; right: -1px; border-width: 0 1.5px 1.5px 0; }
+.ticks > .tick-tr { content: ""; top: -1px; right: -1px;     border-width: 1.5px 1.5px 0 0; }
+.ticks > .tick-bl { content: ""; bottom: -1px; left: -1px;   border-width: 0 0 1.5px 1.5px; }
+
+/* gradient-stroke border — used on the hero molecule frame */
+.bevel-border {
+  position: relative;
+}
+.bevel-border::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: linear-gradient(140deg, rgba(84, 103, 242, 0.55), rgba(138, 150, 245, 0.25) 40%, transparent 70%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  pointer-events: none;
+}
+
+.shadow-card    { box-shadow: 0 1px 0 rgba(20, 22, 43, 0.02), 0 6px 18px -14px rgba(20, 22, 43, 0.10); }
+.shadow-card-lg { box-shadow: 0 2px 0 rgba(20, 22, 43, 0.02), 0 24px 56px -28px rgba(20, 22, 43, 0.18); }
+.glow-brand     { box-shadow: 0 0 0 1.5px var(--color-line), 0 30px 80px -40px rgba(84, 103, 242, 0.45); }
+.glow-soft      { box-shadow: 0 0 0 1.5px var(--color-line), 0 12px 32px -18px rgba(20, 22, 43, 0.16); }
+.glow-ok        { box-shadow: 0 0 0 1.5px var(--color-line), 0 0 50px -10px rgba(78, 192, 122, 0.45); }
+.glow-warn      { box-shadow: 0 0 0 1.5px var(--color-line), 0 0 50px -10px rgba(244, 98, 95, 0.45); }
+
+/* -------------------------------------------------------------------
+   Shimmer
+   ------------------------------------------------------------------- */
+
+.shimmer {
+  background: linear-gradient(90deg, #eef1fa 0%, #f6f8fc 50%, #eef1fa 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.2s linear infinite;
+}
+
+/* -------------------------------------------------------------------
+   Background ornaments — editorial scientific
+   ------------------------------------------------------------------- */
+
+.bg-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(72px);
+  pointer-events: none;
+  will-change: transform;
+}
+
+/* horizontal hairline rules anchored to the page — like a baseline grid */
+.bg-baseline-rules {
+  background-image: linear-gradient(180deg, transparent 0, transparent calc(100% - 1px), rgba(84, 103, 242, 0.07) calc(100% - 1px));
+  background-size: 100% 96px;
+}
+
+/* large architectural cobalt arc — pure SVG, no JS */
+.bg-arc {
+  position: absolute;
+  top: -160px;
+  right: -120px;
+  width: 720px;
+  height: 720px;
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+/* -------------------------------------------------------------------
+   Buttons & controls
+   ------------------------------------------------------------------- */
+
+.btn-primary {
+  position: relative;
+  background: var(--color-brand);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  border-radius: 8px;
+  transition: transform 200ms var(--ease-out-soft), box-shadow 200ms ease, background 200ms ease;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    0 8px 20px -10px rgba(84, 103, 242, 0.55),
+    0 0 0 1px rgba(84, 103, 242, 0.4);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-brand-deep);
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.3) inset,
+    0 12px 28px -10px rgba(84, 103, 242, 0.7),
+    0 0 0 1px rgba(84, 103, 242, 0.55);
+}
+.btn-primary:active:not(:disabled) { transform: translateY(0); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-ghost {
+  background: #ffffff;
+  color: var(--color-ink-2);
+  border: 1.5px solid var(--color-line);
+  border-radius: 8px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--color-bg-soft);
+  border-color: var(--color-line-strong);
+  color: var(--color-ink);
+}
+
+/* segmented pill */
+.seg {
+  position: relative;
+  display: inline-flex;
+  padding: 3px;
+  border-radius: 9999px;
+  background: var(--color-bg-soft);
+  border: 1.5px solid var(--color-line);
+}
+
+/* tab-pill — pitch deck nav, with cobalt underline mark when active */
+.tab-pill {
+  position: relative;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 6px 4px;
+  margin: 0 10px;
+  border: none;
+  background: transparent;
+  color: var(--color-ink-dim);
+  transition: color 180ms ease;
+  letter-spacing: -0.005em;
+}
+.tab-pill:first-child { margin-left: 0; }
+.tab-pill:hover { color: var(--color-ink-2); }
+.tab-pill.on { color: var(--color-ink); }
+.tab-pill::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  width: 0;
+  height: 1.5px;
+  background: var(--color-brand);
+  transform: translateX(-50%);
+  transition: width 280ms var(--ease-out-expo);
+}
+.tab-pill.on::after { width: calc(100% + 8px); }
+
+/* -------------------------------------------------------------------
+   3D viewer surface — schematic specimen
+   ------------------------------------------------------------------- */
+
+.viewer-frame {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 30% 20%, rgba(84, 103, 242, 0.07), transparent 60%),
+    radial-gradient(ellipse at 80% 80%, rgba(138, 150, 245, 0.08), transparent 60%),
+    var(--color-bg-soft);
+  overflow: hidden;
+  border: 1.5px solid var(--color-line);
+  border-radius: 12px;
+}
+.viewer-frame::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255, 0.55) 0%, transparent 18%, transparent 82%, rgba(20, 22, 43, 0.04) 100%);
+}
+
+.viewer-corner {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-brand);
+  pointer-events: none;
+}
+.viewer-corner.tl { top: 10px;    left: 10px;    border-right: none;  border-bottom: none; }
+.viewer-corner.tr { top: 10px;    right: 10px;   border-left: none;   border-bottom: none; }
+.viewer-corner.bl { bottom: 10px; left: 10px;    border-right: none;  border-top: none;    }
+.viewer-corner.br { bottom: 10px; right: 10px;   border-left: none;   border-top: none;    }
+
+/* -------------------------------------------------------------------
+   Schematic molecule (deck motif)
+   ------------------------------------------------------------------- */
+
+.mol-pocket { fill: none; stroke: var(--color-mol-stroke); stroke-width: 2.5; stroke-dasharray: 5 7; opacity: 0.6; }
+.mol-bond   { stroke: var(--color-mol-stroke); stroke-width: 3; }
+.mol-lig    { animation: wob 3s ease-in-out infinite; transform-origin: center; }
+
+/* -------------------------------------------------------------------
+   Recharts light theme
+   ------------------------------------------------------------------- */
+
+.recharts-wrapper text { fill: var(--color-ink-mute); font-family: var(--font-mono); font-size: 10px; }
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line { stroke: var(--color-line); }
+
+/* -------------------------------------------------------------------
+   Editorial misc
+   ------------------------------------------------------------------- */
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
+
+.hr-fade {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-line) 20%, var(--color-line) 80%, transparent);
+  border: 0;
+}
+
+.orbit-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  border: 1.5px solid rgba(84, 103, 242, 0.35);
+}
+
+.dot-live {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 9999px;
+  background: var(--color-brand);
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+/* full-width hairline — page baseline rule */
+.rule {
+  height: 1.5px;
+  background: var(--color-line);
+  width: 100%;
+  border: 0;
+}
+
+.rule-strong {
+  height: 1.5px;
+  background: var(--color-ink);
+  width: 100%;
+  border: 0;
+}
+
+/* big editorial display number — used for stat counters */
+.display-num {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums;
+  line-height: 0.92;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

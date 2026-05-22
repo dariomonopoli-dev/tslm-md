@@ -1,0 +1,37 @@
+# Web framework
+fastapi>=0.115,<0.120
+uvicorn[standard]>=0.30,<0.40
+pydantic>=2.7,<3
+python-dotenv>=1.0,<2
+
+# HTTP client (OpenRouter, embeddings)
+httpx>=0.27,<0.30
+tenacity>=8.2,<10
+
+# AWS SDK for the SageMaker backend (INFERENCE_BACKEND=sagemaker)
+boto3>=1.34,<2
+
+# LLM / embeddings
+openai>=1.40,<2
+
+# RAG store
+chromadb>=0.5,<0.7
+
+# Inference (TSLM)
+torch>=2.9,<3
+transformers>=4.57,<5
+peft>=0.18,<0.20
+accelerate>=0.34,<2
+
+# Trajectory + chemistry
+h5py>=3.11,<4
+numpy>=2.0,<3
+mdanalysis>=2.7,<3
+rdkit-pypi>=2024.3
+scikit-learn>=1.5,<2
+
+# Vina ligand prep
+meeko>=0.6,<1
+
+# Rate limiting
+slowapi>=0.1.9,<1

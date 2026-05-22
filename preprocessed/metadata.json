@@ -1,0 +1,40 @@
+{
+  "version": "v1",
+  "channel_order": [
+    "rmsd_ligand",
+    "interaction_energy",
+    "distance",
+    "bSASA"
+  ],
+  "n_frames": 100,
+  "clip_bounds": {
+    "rmsd_ligand": [
+      0.0,
+      50.0
+    ],
+    "interaction_energy": [
+      -500.0,
+      50.0
+    ],
+    "distance": [
+      0.0,
+      50.0
+    ],
+    "bSASA": [
+      0.0,
+      2500.0
+    ]
+  },
+  "pocket_threshold_a": 20.0,
+  "energy_spike_kcal": 30.0,
+  "drift_window": 20,
+  "drift_rmsd_a": 5.0,
+  "drift_dist_a": 30.0,
+  "unstable_rmsd_a": 10.0,
+  "counts": {
+    "train": 13758,
+    "val": 1595,
+    "test": 1612
+  },
+  "skipped": []
+}
