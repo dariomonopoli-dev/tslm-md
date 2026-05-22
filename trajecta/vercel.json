@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "installCommand": "npm install",
+  "rewrites": [
+    {
+      "source": "/api/pdb_ids",
+      "destination": "https://soccer-planner-chess-jason.trycloudflare.com/ids"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://soccer-planner-chess-jason.trycloudflare.com/:path*"
+    }
+  ]
+}

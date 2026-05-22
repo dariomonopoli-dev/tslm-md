@@ -209,7 +209,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             </button>
 
             {pdbSearchOpen && (
-              <div className="absolute top-full left-12 mt-2 z-30 w-80 max-h-80 overflow-hidden flex flex-col glass-strong rounded-xl bevel-border fx-fade-soft">
+              <div className="absolute top-full left-0 sm:left-12 mt-2 z-30 w-[min(20rem,calc(100vw-2rem))] max-h-80 overflow-hidden flex flex-col glass-strong rounded-xl bevel-border fx-fade-soft">
                 <DarkInput
                   autoFocus
                   value={pdbFilter}

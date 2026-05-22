@@ -110,12 +110,20 @@ export const api = {
     return request<HealthResponse>('/health', { signal });
   },
 
-  pdbIds(opts: { q?: string; limit?: number; signal?: AbortSignal } = {}) {
+  async pdbIds(opts: { q?: string; limit?: number; signal?: AbortSignal } = {}): Promise<ApiResult<string[]>> {
     const params = new URLSearchParams();
     if (opts.q) params.set('q', opts.q);
     if (opts.limit != null) params.set('limit', String(opts.limit));
     const qs = params.toString();
-    return request<string[]>(`/pdb_ids${qs ? `?${qs}` : ''}`, { signal: opts.signal });
+    // Tunnel backend returns { ids: string[] }; the rich backend returns string[].
+    // Accept either shape so this works against both.
+    const res = await request<string[] | { ids: string[] }>(
+      `/pdb_ids${qs ? `?${qs}` : ''}`,
+      { signal: opts.signal },
+    );
+    if (!res.ok) return res;
+    const ids = Array.isArray(res.data) ? res.data : res.data.ids;
+    return { ok: true, data: ids };
   },
 
   predict(pdb_id: string, variant: Variant, signal?: AbortSignal) {

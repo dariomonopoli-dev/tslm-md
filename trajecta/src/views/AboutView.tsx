@@ -20,16 +20,16 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
   const heroPdb = HERO_PDBS[heroIdx];
 
   return (
-    <div className="flex flex-col gap-28 pb-16">
+    <div className="flex flex-col gap-16 sm:gap-24 lg:gap-28 pb-16">
       {/* ============================================================
-         HERO — asymmetric editorial composition
+         HERO: asymmetric editorial composition
          ============================================================ */}
-      <section className="pt-10 relative">
-        <div className="grid grid-cols-12 gap-x-8 gap-y-12">
-          <div className="col-span-12 lg:col-span-7 flex flex-col gap-7 fx-fade-up">
-            <div className="flex items-center gap-3">
+      <section className="pt-4 sm:pt-10 relative">
+        <div className="grid grid-cols-12 gap-x-8 gap-y-10 sm:gap-y-12">
+          <div className="col-span-12 lg:col-span-7 flex flex-col gap-6 sm:gap-7 fx-fade-up">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               <span className="sec-id"><span className="num">01</span> &nbsp;/&nbsp; OVERVIEW</span>
-              <span className="rule flex-1 max-w-[140px] fx-rule-draw" />
+              <span className="rule flex-1 max-w-[140px] fx-rule-draw hidden sm:inline-block" />
               <span className="stamp">COLOSSEUM IDEARUM · 2026</span>
             </div>
 
@@ -40,11 +40,11 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
               <span className="serif" style={{ color: 'var(--color-brand)' }}>hides.</span>
             </h1>
 
-            <p className="text-[18px] leading-[1.55] max-w-[44ch]"
+            <p className="text-[16px] sm:text-[18px] leading-[1.55] max-w-[44ch]"
                style={{ color: 'var(--color-ink-2)' }}>
               A language model that reads protein–ligand{' '}
               <span className="serif" style={{ color: 'var(--color-ink)' }}>molecular dynamics</span>{' '}
-              to predict binding affinity — paired with an independent
+              to predict binding affinity, paired with an independent
               agent that audits every claim before it ships.
             </p>
 
@@ -73,7 +73,7 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
 
           <div className="col-span-12 lg:col-span-5 relative fx-fade-up lg:translate-y-12"
                style={{ animationDelay: '120ms' }}>
-            <div className="relative h-[460px] lg:h-[520px]">
+            <div className="relative h-[320px] sm:h-[440px] lg:h-[520px]">
               <MoleculeHero pdb={heroPdb} className="absolute inset-0" />
             </div>
 
@@ -98,7 +98,7 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
             </div>
           </div>
 
-          <div className="col-span-12 grid grid-cols-3 gap-x-8 mt-4 fx-fade-up"
+          <div className="col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-7 sm:gap-y-0 mt-4 fx-fade-up"
                style={{ animationDelay: '300ms' }}>
             <Stat label="Test systems"        value={130}  decimals={0} />
             <Stat label="Channels per frame" value={4}    decimals={0} />
@@ -112,25 +112,25 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
          ============================================================ */}
       <section className="flex flex-col gap-8 fx-fade-up">
         <SectionLockup id="02" eyebrow="Try these" title="Three worked examples."
-                       subtitle="Curated to show what the audit catches — and what it can’t." />
+                       subtitle="Curated to show what the audit catches, and what it can’t." />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 fx-stagger">
           <ExampleCard n="01" pdb="1A1B" tone="ok"    tag="easy / trust"
             title="Stable binder."
-            blurb="All four evidence sources agree — model, regex, physics, literature."
+            blurb="All four evidence sources agree: model, regex, physics, literature."
             onClick={() => onGoToSingle?.('1A1B')} />
           <ExampleCard n="02" pdb="4QZL" tone="brand" tag="hard / right"
             title="Model beats Vina by 1.8 pK."
             blurb="The audit lands on trust after literature confirms a non-obvious pose."
             onClick={() => onGoToSingle?.('4QZL')} />
           <ExampleCard n="03" pdb="2X3K" tone="warn"  tag="failure caught"
-            title="Confident — and wrong."
+            title="Confident, and wrong."
             blurb="Model overshoots. The agent catches it with ligand-efficiency reasoning."
             onClick={() => onGoToSingle?.('2X3K')} />
         </div>
       </section>
 
       {/* ============================================================
-         PIPELINE — deck architecture slide
+         PIPELINE: deck architecture slide
          ============================================================ */}
       <section className="flex flex-col gap-8 fx-fade-up">
         <SectionLockup id="03" eyebrow="The pipeline" title="A four-stage audit."
@@ -146,9 +146,9 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
           title="What this demo is."
           tone="brand"
           items={[
-            'An application of OpenTSLM-Flamingo to a new modality — MD trajectories.',
-            'Grounded rationales — every claim checkable against the input channels or independent physics.',
-            'An auditable AI — the agent shows its work, cites its sources, respects independence.',
+            'An application of OpenTSLM-Flamingo to a new modality: MD trajectories.',
+            'Grounded rationales. Every claim checkable against the input channels or independent physics.',
+            'An auditable AI. The agent shows its work, cites its sources, respects independence.',
           ]} />
         <SpecimenList refId="REF 04.2" eyebrow="IS NOT"
           title="What this demo is not."
@@ -157,15 +157,15 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
             'A production drug-discovery tool. Demo-grade artifact.',
             'A replacement for wet-lab assays. Use as a triage layer.',
             'A regulatory or clinical decision tool.',
-            'A model that beats experimental accuracy — 10 ns of MD limits resolution to ~±0.3 pK.',
+            'A model that beats experimental accuracy. 10 ns of MD limits resolution to ~±0.3 pK.',
           ]} />
       </section>
 
       {/* ============================================================
-         INDEPENDENCE — printed specimen sheet
+         INDEPENDENCE: printed specimen sheet
          ============================================================ */}
       <section className="fx-fade-up">
-        <div className="panel-tint relative p-9 ticks">
+        <div className="panel-tint relative p-6 sm:p-9 ticks">
           <span className="tick-tr" />
           <span className="tick-bl" />
           <div className="flex items-start justify-between mb-7 gap-6 flex-wrap">
@@ -188,15 +188,15 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
           </p>
 
           <ol className="space-y-0 max-w-[64ch]">
-            <Guarantee n="01" body="Uses only tools that operate on data the trained model did not see — raw atomic coordinates, external force fields, label-filtered RAG." />
+            <Guarantee n="01" body="Uses only tools that operate on data the trained model did not see: raw atomic coordinates, external force fields, label-filtered RAG." />
             <Guarantee n="02" body="Cannot “look up the answer.” RAG chunks containing the system’s experimental Kd are excluded at retrieval time for the system under test." />
-            <Guarantee n="03" body="Refuses to use prior knowledge — every factual claim must cite either a tool output or a retrieved evidence chunk." />
+            <Guarantee n="03" body="Refuses to use prior knowledge. Every factual claim must cite either a tool output or a retrieved evidence chunk." />
           </ol>
         </div>
       </section>
 
       {/* ============================================================
-         FOOTER — colophon
+         FOOTER: colophon
          ============================================================ */}
       <section className="flex flex-col gap-3 items-center pt-6">
         <span className="rule max-w-[400px]" />
@@ -324,14 +324,14 @@ const PIPELINE: Array<{
 
 function PipelineDiagram() {
   return (
-    <div className="panel p-7 relative overflow-hidden">
-      <div className="flex items-stretch gap-3 overflow-x-auto no-scrollbar pt-3">
+    <div className="panel p-5 sm:p-7 relative overflow-hidden">
+      <div className="flex items-stretch gap-3 overflow-x-auto no-scrollbar pt-3 -mx-1 px-1">
         {PIPELINE.map((p, i) => (
           <PipelineStep key={p.step} {...p} last={i === PIPELINE.length - 1} />
         ))}
         <PipelineOut />
       </div>
-      <div className="flex items-center gap-6 mt-6 pt-6 border-t" style={{ borderColor: 'var(--color-line)' }}>
+      <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-6 pt-6 border-t" style={{ borderColor: 'var(--color-line)' }}>
         <LegendSwatch tone="base" label="OpenTSLM-Flamingo (the paper)" />
         <LegendSwatch tone="ours" label="What we added for molecular dynamics" />
       </div>

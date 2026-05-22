@@ -62,7 +62,7 @@ export function FailureModesView({ variant, onGoToSingle }: FailureModesViewProp
           </div>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {loading && (
             <div className="flex items-center gap-2 text-sm py-6"
                  style={{ color: 'var(--color-ink-mute)' }}>
@@ -160,8 +160,8 @@ export function FailureModesView({ variant, onGoToSingle }: FailureModesViewProp
           <CardHeader>
             Aggregate failure pattern analysis
           </CardHeader>
-          <div className="p-6">
-            <table className="w-full text-sm text-left border-collapse max-w-4xl">
+          <div className="p-4 sm:p-6 overflow-x-auto">
+            <table className="w-full text-sm text-left border-collapse max-w-4xl min-w-[520px]">
               <thead>
                 <tr className="text-[10px] font-mono tracking-[0.18em] uppercase"
                     style={{ color: 'var(--color-ink-dim)' }}>

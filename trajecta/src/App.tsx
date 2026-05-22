@@ -42,8 +42,8 @@ export default function App() {
       <BackgroundFX />
 
       {/* ---------- Pitch-deck nav: pill tabs, active = bordered ink ---------- */}
-      <header className="sticky top-0 z-40 px-6 pt-6 pb-3">
-        <div className="max-w-[1320px] mx-auto flex items-center justify-between gap-6">
+      <header className="sticky top-0 z-40 px-4 sm:px-6 pt-4 sm:pt-6 pb-2 sm:pb-3">
+        <div className="max-w-[1320px] mx-auto flex items-center justify-between gap-3 sm:gap-6">
           <Brand onClick={() => setView('about')} />
 
           <nav className="hidden md:flex items-center gap-2">
@@ -61,23 +61,11 @@ export default function App() {
             })}
           </nav>
 
-          {/* mobile dropdown */}
-          <select
-            className="md:hidden glass rounded-full px-3 py-1.5 text-sm shadow-card"
-            value={view}
-            onChange={(e) => setView(e.target.value as ViewState)}
-            style={{ color: 'var(--color-ink)', background: '#ffffff' }}
-          >
-            {TABS.map(t => (
-              <option key={t.id} value={t.id}>{t.label}</option>
-            ))}
-          </select>
-
           <a
             href="https://github.com"
             target="_blank"
             rel="noreferrer"
-            className="hidden md:flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-mono tracking-wider transition shadow-card"
+            className="flex items-center gap-2 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-[12px] font-mono tracking-wider transition shadow-card"
             style={{
               color: 'var(--color-ink-2)',
               background: '#ffffff',
@@ -88,10 +76,29 @@ export default function App() {
             v0.1 · live
           </a>
         </div>
+
+        {/* mobile: horizontal pill strip below the brand row */}
+        <nav
+          className="md:hidden mt-3 -mx-4 px-4 flex items-center gap-1 overflow-x-auto scrollbar-none"
+          aria-label="Sections"
+        >
+          {TABS.map((tab) => {
+            const active = view === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setView(tab.id)}
+                className={clsx('tab-chip', active && 'on')}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </nav>
       </header>
 
       {/* ---------- View body ---------- */}
-      <main className="px-6 pb-24 pt-2">
+      <main className="px-4 sm:px-6 pb-20 sm:pb-24 pt-2">
         <div key={transitionKey} className="max-w-[1320px] mx-auto fx-fade-in">
           {view === 'about' && <AboutView onGoToSingle={goToSingle} onGoToTab={setView as (v: string) => void} />}
           {view === 'single' && (
@@ -122,11 +129,11 @@ export default function App() {
 
       {/* ---------- Footer ---------- */}
       <footer className="border-t" style={{ borderColor: 'var(--color-line)' }}>
-        <div className="max-w-[1320px] mx-auto px-6 py-6 flex flex-wrap items-center justify-between gap-4 text-[11px] font-mono tracking-wider"
+        <div className="max-w-[1320px] mx-auto px-4 sm:px-6 py-5 sm:py-6 flex flex-wrap items-center justify-between gap-3 sm:gap-4 text-[10px] sm:text-[11px] font-mono tracking-wider"
              style={{ color: 'var(--color-ink-dim)' }}>
           <span>TRAJECTA · COLOSSEUM IDEARUM 2026 · DEMO ARTIFACT</span>
           <span className="flex items-center gap-3">
-            <span>MISATO · OPENTSLM-SP · ANTHROPIC</span>
+            <span className="hidden sm:inline">MISATO · OPENTSLM-SP · ANTHROPIC</span>
             <span className="dot-live" />
           </span>
         </div>
