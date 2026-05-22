@@ -1,4 +1,4 @@
-"""FastAPI entry point for the MoleMotion inference service.
+"""FastAPI entry point for the Trajecta inference service.
 
 Routes:
   /health, /pdb_ids                     — task #7 (live)
@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="MoleMotion inference service", lifespan=lifespan)
+app = FastAPI(title="Trajecta inference service", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

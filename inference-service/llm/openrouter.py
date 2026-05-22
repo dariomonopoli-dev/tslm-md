@@ -76,7 +76,7 @@ def _headers() -> dict[str, str]:
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
         "HTTP-Referer": os.getenv("OPENROUTER_REFERER", "http://localhost:3000"),
-        "X-Title": os.getenv("OPENROUTER_TITLE", "MoleMotion"),
+        "X-Title": os.getenv("OPENROUTER_TITLE", "Trajecta"),
     }
 
 

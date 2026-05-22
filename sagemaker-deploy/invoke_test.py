@@ -1,7 +1,7 @@
 """Quick sanity check — invoke the deployed endpoint with one PDB.
 
 Usage:
-    python invoke_test.py --endpoint-name molemotion-tslm --pdb 1A1B --variant v1a
+    python invoke_test.py --endpoint-name trajecta-tslm --pdb 1A1B --variant v1a
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import boto3
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--endpoint-name", default="molemotion-tslm")
+    p.add_argument("--endpoint-name", default="trajecta-tslm")
     p.add_argument("--pdb", default="1A1B")
     p.add_argument("--variant", choices=["v1a", "v1b"], default="v1a")
     p.add_argument("--region", default=None)

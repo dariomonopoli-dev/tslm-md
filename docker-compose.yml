@@ -1,4 +1,4 @@
-# MoleMotion stack — frontend (nginx) + inference (FastAPI + embedded ChromaDB).
+# Trajecta stack — frontend (nginx) + inference (FastAPI + embedded ChromaDB).
 # ChromaDB runs in-process inside the inference container (PersistentClient mode)
 # so the demo stays at two services. Switch to a separate `chroma` service if
 # you want to share the corpus across multiple inference replicas.
@@ -8,8 +8,8 @@ services:
     build:
       context: .
       dockerfile: inference-service/Dockerfile
-    image: molemotion/inference:dev
-    container_name: molemotion-inference
+    image: trajecta/inference:dev
+    container_name: trajecta-inference
     restart: unless-stopped
     env_file:
       - .env
@@ -67,12 +67,12 @@ services:
 
   frontend:
     build:
-      context: molemotion
+      context: trajecta
       dockerfile: Dockerfile
       args:
         VITE_API_BASE_URL: /api
-    image: molemotion/frontend:dev
-    container_name: molemotion-frontend
+    image: trajecta/frontend:dev
+    container_name: trajecta-frontend
     restart: unless-stopped
     depends_on:
       inference:
@@ -82,4 +82,4 @@ services:
 
 volumes:
   inference_data:
-    name: molemotion_inference_data
+    name: trajecta_inference_data

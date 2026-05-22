@@ -1,17 +1,17 @@
-"""Create or update the MoleMotion SageMaker endpoint.
+"""Create or update the Trajecta SageMaker endpoint.
 
 Run this from a SageMaker Studio Code Editor notebook / terminal — the
 SageMaker SDK picks up the execution role from the environment.
 
 Usage:
     python deploy.py \\
-        --model-data s3://my-bucket/molemotion/model.tar.gz \\
-        --endpoint-name molemotion-tslm \\
+        --model-data s3://my-bucket/trajecta/model.tar.gz \\
+        --endpoint-name trajecta-tslm \\
         --instance-type ml.g5.xlarge \\
         --mode realtime           # or 'async'
 
 To delete an endpoint:
-    python deploy.py --endpoint-name molemotion-tslm --delete
+    python deploy.py --endpoint-name trajecta-tslm --delete
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from sagemaker.async_inference import AsyncInferenceConfig
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--model-data", help="S3 URI of the model.tar.gz built by build_model_tarball.py")
-    p.add_argument("--endpoint-name", default="molemotion-tslm")
+    p.add_argument("--endpoint-name", default="trajecta-tslm")
     p.add_argument("--instance-type", default="ml.g5.xlarge",
                    help="g5.xlarge matches the training instance; 24 GB VRAM fits both variants")
     p.add_argument("--instance-count", type=int, default=1)
@@ -100,7 +100,7 @@ def main() -> None:
     )
 
     if args.mode == "async":
-        out_s3 = args.async_output_s3 or f"s3://{sm_session.default_bucket()}/molemotion/async-out/"
+        out_s3 = args.async_output_s3 or f"s3://{sm_session.default_bucket()}/trajecta/async-out/"
         print(f"  mode             = async, output {out_s3}")
         deploy_kwargs["async_inference_config"] = AsyncInferenceConfig(
             output_path=out_s3,

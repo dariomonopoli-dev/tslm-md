@@ -1,4 +1,4 @@
-# Multi-stage build for the MoleMotion inference service.
+# Multi-stage build for the Trajecta inference service.
 # Build context = repo root (set in docker-compose.yml) so we can COPY
 # both inference-service/ and the editable OpenTSLM/ source tree.
 

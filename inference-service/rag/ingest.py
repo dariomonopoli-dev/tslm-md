@@ -232,7 +232,7 @@ def embed_batch(texts: list[str]) -> list[list[float]]:
         if "openrouter" in base_url:
             headers = {
                 "HTTP-Referer": os.getenv("OPENROUTER_REFERER", "http://localhost:3000"),
-                "X-Title": os.getenv("OPENROUTER_TITLE", "MoleMotion"),
+                "X-Title": os.getenv("OPENROUTER_TITLE", "Trajecta"),
             }
 
         client = OpenAI(api_key=api_key, base_url=base_url, default_headers=headers)
@@ -255,7 +255,7 @@ def _chroma_collection():
     import chromadb
     client = chromadb.PersistentClient(path=os.getenv("CHROMA_PATH", "/app/data/chroma"))
     return client.get_or_create_collection(
-        name="molemotion",
+        name="trajecta",
         metadata={"hnsw:space": "cosine"},
     )
 

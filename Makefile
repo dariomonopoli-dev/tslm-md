@@ -1,4 +1,4 @@
-# MoleMotion stack — common operations.
+# Trajecta stack — common operations.
 # All targets assume `docker compose` (v2) is available.
 
 COMPOSE ?= docker compose

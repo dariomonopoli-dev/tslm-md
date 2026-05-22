@@ -1,4 +1,4 @@
-# MoleMotion inference service
+# Trajecta inference service
 
 FastAPI backend that serves the trained TSLM (v1a + v1b), runs the regex
 verifier, reconstructs PDB trajectories from MISATO HDF5, and orchestrates

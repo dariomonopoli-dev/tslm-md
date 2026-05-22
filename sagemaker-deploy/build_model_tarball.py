@@ -11,7 +11,7 @@ Usage:
         --preprocessed /home/sagemaker-user/preprocessed \\
         --code-dir ./code \\
         --out model.tar.gz \\
-        --s3-uri s3://my-bucket/molemotion/model.tar.gz
+        --s3-uri s3://my-bucket/trajecta/model.tar.gz
 """
 
 from __future__ import annotations

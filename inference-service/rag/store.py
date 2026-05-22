@@ -27,7 +27,7 @@ class Chunk(TypedDict):
 def _collection():
     import chromadb
     client = chromadb.PersistentClient(path=os.getenv("CHROMA_PATH", "/app/data/chroma"))
-    return client.get_or_create_collection(name="molemotion", metadata={"hnsw:space": "cosine"})
+    return client.get_or_create_collection(name="trajecta", metadata={"hnsw:space": "cosine"})
 
 
 def _embed(text: str) -> list[float]:

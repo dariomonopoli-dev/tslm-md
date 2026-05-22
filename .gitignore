@@ -48,11 +48,11 @@ dist/
 .mypy_cache/
 .ipynb_checkpoints/
 
-# OpenTSLM + molemotion came with their own inner .git directories; we keep
+# OpenTSLM + trajecta came with their own inner .git directories; we keep
 # them as plain files in this repo and stash the original .git as .git.bak/
 # so the upstream history is recoverable without polluting our history.
 OpenTSLM/.git.bak/
-molemotion/.git.bak/
+trajecta/.git.bak/
 
 # Separate frontend project (its own repo, not part of training pipeline)
 website/

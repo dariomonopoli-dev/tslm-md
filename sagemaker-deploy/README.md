@@ -1,4 +1,4 @@
-# Deploy the MoleMotion TSLM to a SageMaker endpoint
+# Deploy the Trajecta TSLM to a SageMaker endpoint
 
 The trained TSLM (v1a + v1b, ~80 MB each) runs on a SageMaker GPU endpoint;
 the rest of the stack (agent loop, RAG, tools, FastAPI orchestrator) stays
@@ -44,7 +44,7 @@ python build_model_tarball.py \
     --preprocessed /home/sagemaker-user/preprocessed \
     --code-dir ./code \
     --out model.tar.gz \
-    --s3-uri s3://<your-bucket>/molemotion/model.tar.gz
+    --s3-uri s3://<your-bucket>/trajecta/model.tar.gz
 ```
 
 Either `--v1a-ckpt` or `--v1b-ckpt` is enough — pass both to serve both.
@@ -70,8 +70,8 @@ the local FastAPI service, not on SageMaker.
 
 ```bash
 python deploy.py \
-    --model-data s3://<your-bucket>/molemotion/model.tar.gz \
-    --endpoint-name molemotion-tslm \
+    --model-data s3://<your-bucket>/trajecta/model.tar.gz \
+    --endpoint-name trajecta-tslm \
     --instance-type ml.g5.xlarge \
     --mode realtime
 ```
@@ -84,16 +84,16 @@ To swap to async (scale-to-zero, request → S3 → response → S3):
 
 ```bash
 python deploy.py \
-    --model-data s3://<your-bucket>/molemotion/model.tar.gz \
-    --endpoint-name molemotion-tslm \
+    --model-data s3://<your-bucket>/trajecta/model.tar.gz \
+    --endpoint-name trajecta-tslm \
     --mode async \
-    --async-output-s3 s3://<your-bucket>/molemotion/async-out/
+    --async-output-s3 s3://<your-bucket>/trajecta/async-out/
 ```
 
 ## Step 3 — sanity check
 
 ```bash
-python invoke_test.py --endpoint-name molemotion-tslm --pdb 1A1B --variant v1a
+python invoke_test.py --endpoint-name trajecta-tslm --pdb 1A1B --variant v1a
 ```
 
 Expected response:
@@ -117,7 +117,7 @@ In `.env` at the repo root:
 
 ```
 INFERENCE_BACKEND=sagemaker
-SAGEMAKER_ENDPOINT_NAME=molemotion-tslm
+SAGEMAKER_ENDPOINT_NAME=trajecta-tslm
 SAGEMAKER_REGION=us-west-2
 AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
@@ -133,7 +133,7 @@ running locally.
 When you're done demoing:
 
 ```bash
-python deploy.py --endpoint-name molemotion-tslm --delete
+python deploy.py --endpoint-name trajecta-tslm --delete
 ```
 
 Deletes the endpoint + endpoint-config + model. The `model.tar.gz` in S3
@@ -145,6 +145,6 @@ stays so you can redeploy without rebuilding.
 |---|---|---|
 | "401 Client Error: Unauthorized" during boot | HF token missing/expired | Re-export `HUGGING_FACE_HUB_TOKEN`, re-run `deploy.py` |
 | `model_fn` errors with "no checkpoints loaded" | tarball missing `v1a/` or `v1b/` directory | Re-run `build_model_tarball.py` with the right `--*-ckpt` paths |
-| InService but invoke returns 500 | check CloudWatch `/aws/sagemaker/Endpoints/<name>` logs | `aws logs tail /aws/sagemaker/Endpoints/molemotion-tslm --follow` |
+| InService but invoke returns 500 | check CloudWatch `/aws/sagemaker/Endpoints/<name>` logs | `aws logs tail /aws/sagemaker/Endpoints/trajecta-tslm --follow` |
 | Cold start > 5 min | torch version mismatch forces wheel rebuild | Match `--framework-version` to your training torch (default 2.4.0) |
 | First invocation slow (~30 s) | OS-level model load + JIT warmup | Send one warmup call after deploy; subsequent calls are ~2-3 s |

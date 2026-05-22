@@ -1,4 +1,4 @@
-"""SageMaker PyTorch container entry-point for the MoleMotion TSLM.
+"""SageMaker PyTorch container entry-point for the Trajecta TSLM.
 
 Loads both v1a + v1b checkpoints once at startup, then serves one prediction
 per invocation. The SageMaker PyTorch inference container (DLC) calls the

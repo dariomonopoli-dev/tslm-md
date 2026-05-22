@@ -1,4 +1,4 @@
-# MoleMotion stack — operating guide
+# Trajecta stack — operating guide
 
 ## Two deploy modes for the TSLM
 
@@ -20,7 +20,7 @@ the SageMaker endpoint.
 ```bash
 # Mode A → Mode B
 sed -i 's/INFERENCE_BACKEND=local/INFERENCE_BACKEND=sagemaker/' .env
-echo SAGEMAKER_ENDPOINT_NAME=molemotion-tslm >> .env
+echo SAGEMAKER_ENDPOINT_NAME=trajecta-tslm >> .env
 make restart
 ```
 
@@ -34,12 +34,12 @@ The demo is two Docker services:
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                       USER BROWSER                              │
-│   nginx (molemotion/frontend) → static React bundle on :3000    │
+│   nginx (trajecta/frontend) → static React bundle on :3000    │
 └──────────────────────────┬──────────────────────────────────────┘
                            │  /api/* (same-origin proxy)
                            ▼
 ┌──────────────────────────────────────────────────────────────────┐
-│              FastAPI (molemotion/inference) :8000               │
+│              FastAPI (trajecta/inference) :8000               │
 │                                                                  │
 │   /predict, /predict/batch, /pdb_string, /pdb_ids, /health      │
 │   /evaluate, /evaluate/agent, /failure_modes                    │
@@ -109,11 +109,11 @@ python build_model_tarball.py \
     --v1a-ckpt /opt/ml/checkpoints/v1a/ckpt_ep1.pt \
     --v1b-ckpt /opt/ml/checkpoints/v1b/ckpt_final.pt \
     --preprocessed /home/sagemaker-user/preprocessed \
-    --s3-uri s3://<your-bucket>/molemotion/model.tar.gz
+    --s3-uri s3://<your-bucket>/trajecta/model.tar.gz
 
 python deploy.py \
-    --model-data s3://<your-bucket>/molemotion/model.tar.gz \
-    --endpoint-name molemotion-tslm \
+    --model-data s3://<your-bucket>/trajecta/model.tar.gz \
+    --endpoint-name trajecta-tslm \
     --mode realtime
 ```
 
@@ -122,7 +122,7 @@ Then on the machine running this stack:
 ```bash
 # .env additions
 INFERENCE_BACKEND=sagemaker
-SAGEMAKER_ENDPOINT_NAME=molemotion-tslm
+SAGEMAKER_ENDPOINT_NAME=trajecta-tslm
 SAGEMAKER_REGION=us-west-2
 # Either provide explicit AWS keys OR run the host with an instance role that
 # has 'sagemaker:InvokeEndpoint' permission on the endpoint ARN.
@@ -143,7 +143,7 @@ When you're done:
 
 ```bash
 cd sagemaker-deploy
-python deploy.py --endpoint-name molemotion-tslm --delete
+python deploy.py --endpoint-name trajecta-tslm --delete
 ```
 
 ## Health check + smoke test
@@ -164,7 +164,7 @@ A green smoke test means:
 | Command | What it does |
 |---|---|
 | `make up` | Build + start the stack |
-| `make down` | Stop containers (keeps the `molemotion_inference_data` volume) |
+| `make down` | Stop containers (keeps the `trajecta_inference_data` volume) |
 | `make restart` | Restart both services |
 | `make logs` | Tail logs from both services |
 | `make shell-inference` | Drop into a bash inside the inference container |
@@ -186,7 +186,7 @@ export $(grep -v '^#' ../.env | xargs)
 uvicorn app:app --reload --port 8000
 
 # terminal 2 — frontend
-cd molemotion
+cd trajecta
 npm install
 npm run dev
 ```
@@ -213,4 +213,4 @@ works in both dev and prod. Override the proxy target with `DEV_API_URL=...`.
 | `/evaluate/agent` returns 429 | daily cap reached | wait for midnight UTC reset, or raise `OPENROUTER_DAILY_USD_CAP` in `.env` |
 | `/evaluate/agent` returns "OPENROUTER_API_KEY not set" | missing env | edit `.env`, `make restart` |
 | 3D viewer empty | `/pdb_string` 503 — HDF5 not mounted | check `./MD.hdf5` exists and `docker compose config` shows it mounted |
-| Failure-modes tab shows "no precomputed" | `make precompute` not run | run it; the JSON lands in the `molemotion_inference_data` volume |
+| Failure-modes tab shows "no precomputed" | `make precompute` not run | run it; the JSON lands in the `trajecta_inference_data` volume |
