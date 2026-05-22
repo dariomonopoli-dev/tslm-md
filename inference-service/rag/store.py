@@ -62,16 +62,39 @@ def rag_query(query: str, pdb_id: str, top_k: int = 6) -> dict:
     """Vector search → label filter → rerank → top_k.
 
     Returns a dict (not bare list) so the agent trace renders nicely:
-    `{"chunks": [...], "filtered_n": N}`.
+    `{"chunks": [...], "filtered_n": N}`. Degrades gracefully to
+    `{chunks: [], error|note: "..."}` on missing key / empty corpus —
+    the orchestrator handles the empty case without crashing.
     """
-    col = _collection()
-    oversample = top_k * 3
-    qvec = _embed(query)
-    raw = col.query(
-        query_embeddings=[qvec],
-        n_results=oversample,
-        include=["documents", "metadatas", "distances"],
-    )
+    import os
+    if not (os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")):
+        return {
+            "query": query, "pdb_id": pdb_id,
+            "filtered_n": 0, "returned_n": 0, "chunks": [],
+            "error": "no embeddings API key set — RAG disabled",
+        }
+
+    try:
+        col = _collection()
+        if col.count() == 0:
+            return {
+                "query": query, "pdb_id": pdb_id,
+                "filtered_n": 0, "returned_n": 0, "chunks": [],
+                "note": "RAG corpus not ingested (`make ingest` to populate)",
+            }
+        oversample = top_k * 3
+        qvec = _embed(query)
+        raw = col.query(
+            query_embeddings=[qvec],
+            n_results=oversample,
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception as e:
+        return {
+            "query": query, "pdb_id": pdb_id,
+            "filtered_n": 0, "returned_n": 0, "chunks": [],
+            "error": f"{type(e).__name__}: {e}",
+        }
 
     docs = raw["documents"][0] if raw["documents"] else []
     metas = raw["metadatas"][0] if raw["metadatas"] else []

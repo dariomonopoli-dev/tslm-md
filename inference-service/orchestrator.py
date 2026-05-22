@@ -144,14 +144,53 @@ def _extract_text(content: list[dict]) -> str:
     return "\n".join(b.get("text", "") for b in content if b.get("type") == "text")
 
 
+def _extract_last_json_object(text: str) -> str:
+    """Find the last syntactically-valid top-level JSON object in `text`.
+
+    Earlier versions used `text.rfind("{") + text.rfind("}")`, which broke
+    when the verdict contained nested objects (the rfind picks the LAST
+    `{`, which is usually the opening brace of an inner claim dict, not
+    the outermost verdict). raw_decode handles balanced braces and
+    string-escape edge cases for free.
+
+    Also strips a ```json ... ``` markdown fence if present.
+    """
+    # 1. Markdown fence — if the model wrapped its JSON, peel the fence.
+    fence_start = text.rfind("```json")
+    if fence_start >= 0:
+        rest = text[fence_start + len("```json"):]
+        fence_end = rest.find("```")
+        if fence_end >= 0:
+            candidate = rest[:fence_end].strip()
+            try:
+                json.loads(candidate)
+                return candidate
+            except json.JSONDecodeError:
+                pass  # fall through to scan-based extraction
+
+    # 2. Scan for the LAST valid top-level JSON object.
+    decoder = json.JSONDecoder()
+    last: str | None = None
+    idx = 0
+    while idx < len(text):
+        open_at = text.find("{", idx)
+        if open_at < 0:
+            break
+        try:
+            _, end = decoder.raw_decode(text[open_at:])
+            last = text[open_at:open_at + end]
+            idx = open_at + end
+        except json.JSONDecodeError:
+            idx = open_at + 1
+    if last is None:
+        raise ValueError("no valid JSON object found in model output")
+    return last
+
+
 def _parse_verdict(text: str) -> Verdict:
-    """Strict JSON parse; raises ValidationError or json.JSONDecodeError."""
-    # Find the last {...} block (the model may chat before the JSON).
-    start = text.rfind("{")
-    end = text.rfind("}")
-    if start < 0 or end <= start:
-        raise ValueError("no JSON object found in final message")
-    return Verdict.model_validate_json(text[start:end + 1])
+    """Strict pydantic parse. Raises on missing fields or wrong shape."""
+    obj = _extract_last_json_object(text)
+    return Verdict.model_validate_json(obj)
 
 
 # --------------------------------------------------------------------------
@@ -274,7 +313,9 @@ async def evaluate_agent(
             text2 = _extract_text(resp2["content"])
             verdict = _parse_verdict(text2)
         except Exception as e:
-            # Graceful fallback per task #17 note: never 500
+            # Graceful fallback per task #17 note: never 500.
+            # _degraded=True tells app.py to skip caching so the user gets a
+            # fresh attempt on the next click instead of a permanent failure.
             verdict_dict = {
                 "scores": {
                     "structural_consistency": 0.0,
@@ -288,6 +329,7 @@ async def evaluate_agent(
                 "recommendation": "review",
                 "citations": [],
                 "independence_caveats": [f"judge produced malformed output: {e}"],
+                "_degraded": True,
             }
             return _attach_envelope(verdict_dict, trace, total_in, total_out, total_cache), trace
 
@@ -362,6 +404,7 @@ async def evaluate_fast(
             "verified_claims": [], "contradicted_claims": [],
             "missing_claims": [], "recommendation": "review", "citations": [],
             "independence_caveats": [f"fast judge malformed: {e}"],
+            "_degraded": True,
         }
 
     trace: list[TraceStep] = [

@@ -32,7 +32,9 @@ Variant = Literal["v1a", "v1b"]
 ANSWER_RE = re.compile(r"Answer:\s*(-?\d+(?:\.\d+)?)")
 
 
-class PredictResult(TypedDict):
+class PredictResult(TypedDict, total=False):
+    # `total=False` lets the tunnel backend stash extra fields (`_tunnel_raw`)
+    # without breaking strict typing on the common keys below.
     pdb_id: str
     variant: Variant
     pK: float
@@ -62,6 +64,20 @@ _SM_REGION: str = ""
 _SM_VARIANTS: list[str] = []
 _SM_ASYNC: bool = False
 _SM_RUNTIME = None  # lazy boto3 client
+
+# Mock backend state — read from preprocessed/samples_test.jsonl.
+# Lets us exercise the full agent loop without a trained model.
+_MOCK_SAMPLES: dict[str, dict] = {}
+_MOCK_NOISE: str = "lossy"  # "clean" or "lossy"
+
+# Tunnel backend state — calls a remote /predict endpoint (e.g. Cloudflare
+# tunnel pointing at a training-instance FastAPI). The remote owns model
+# loading; we just translate schemas.
+_TUNNEL_URL: str = ""
+_TUNNEL_TAU_HIGH: float = 1.5
+_TUNNEL_PDB_IDS: list[str] = []
+_TUNNEL_HEALTH: dict = {}  # cached /health response: {ok, backbone, model_path, n_pdb_ids, ...}
+_GROUND_TRUTH: dict[str, float] = {}  # pdb_id → pK, populated from samples_test.jsonl at warm-up
 
 
 # --------------------------------------------------------------------------
@@ -235,6 +251,28 @@ def warm_up(checkpoint_dir: str, test_split_path: str) -> None:
             print(f"[inference] sagemaker endpoint check failed: {e}")
         return
 
+    if _BACKEND == "mock":
+        _load_mock_samples()
+        if not _TEST_SPLIT and _MOCK_SAMPLES:
+            _TEST_SPLIT = set(_MOCK_SAMPLES.keys())
+        print(f"[inference] mock backend: {len(_MOCK_SAMPLES)} samples, noise={_MOCK_NOISE}")
+        return
+
+    if _BACKEND == "tunnel":
+        global _TUNNEL_URL, _TUNNEL_TAU_HIGH, _TUNNEL_PDB_IDS
+        _TUNNEL_URL = os.getenv("TUNNEL_URL", "").rstrip("/")
+        _TUNNEL_TAU_HIGH = float(os.getenv("TUNNEL_TAU_HIGH", "1.5"))
+        if not _TUNNEL_URL:
+            print("[inference] TUNNEL_URL unset — /predict will 503")
+            return
+        try:
+            _tunnel_warm_up()
+        except Exception as e:
+            print(f"[inference] tunnel warm_up failed: {e}")
+        # Load ground-truth so predictions on test-split PDBs show actual pK.
+        _load_ground_truth()
+        return
+
     # Local backend: load checkpoints + build per-PDB index.
     _LOADED = load_variants(checkpoint_dir)
     _PDB_INDEX = _build_pdb_index()
@@ -257,6 +295,140 @@ def _resolve_test_split(test_split_path: str) -> set[str]:
             arr = np.load(npz, allow_pickle=True)["pdb_ids"]
             return {str(p) for p in arr}
     return set()
+
+
+def _load_mock_samples() -> None:
+    """Build pdb_id → sample dict from preprocessed/samples_test.jsonl.
+
+    Each sample has {pdb_id, pK, rationale, facts}. We treat the
+    templated rationale as the mock model's output. Optionally perturb in
+    `lossy` mode to make the agent's verifier panel show contradictions.
+    """
+    import json
+    global _MOCK_SAMPLES, _MOCK_NOISE
+    _MOCK_NOISE = os.getenv("MOCK_NOISE", "lossy").lower()
+    if _MOCK_NOISE not in ("clean", "lossy"):
+        _MOCK_NOISE = "lossy"
+    candidates = [
+        Path(os.getenv("MISATO_SAMPLES_TEST", "")),
+        Path("/app/data/preprocessed/samples_test.jsonl"),
+        Path("preprocessed/samples_test.jsonl"),
+        Path("../preprocessed/samples_test.jsonl"),
+    ]
+    path = next((p for p in candidates if p and p.exists()), None)
+    if path is None:
+        print("[inference] mock backend: no samples_test.jsonl found — /predict will 404")
+        return
+    out: dict[str, dict] = {}
+    with path.open() as f:
+        for line in f:
+            try:
+                s = json.loads(line)
+            except Exception:
+                continue
+            pid = s.get("pdb_id")
+            if pid:
+                out[str(pid)] = s
+    _MOCK_SAMPLES = out
+
+
+def _tunnel_warm_up() -> None:
+    """Probe the tunnel /health. PDB enumeration is on-demand via /ids.
+
+    Trying to enumerate the full 16k-PDB universe at startup is brittle (the
+    /ids endpoint is autocomplete-style, prefix-required). Instead we trust
+    the tunnel to validate pdb_ids at predict time (it 404s if unknown), and
+    use it as an on-demand autocomplete from the frontend.
+
+    Also caches the /health response so we can surface the actual model name
+    (backbone + checkpoint path) instead of a generic "tunnel" label.
+    """
+    import urllib.request, json
+    global _TUNNEL_PDB_IDS, _TUNNEL_HEALTH
+
+    with urllib.request.urlopen(f"{_TUNNEL_URL}/health", timeout=10) as r:
+        h = json.loads(r.read())
+    _TUNNEL_HEALTH = h
+    n_ids = h.get("n_pdb_ids", 0)
+    print(f"[inference] tunnel /health: backbone={h.get('backbone') or h.get('checkpoint')} "
+          f"device={h.get('device')} n_pdb_ids={n_ids}")
+
+    # Mark backend ready by stashing a non-empty placeholder so variants_loaded() returns true.
+    _TUNNEL_PDB_IDS = [f"<tunnel-{n_ids}-ids>"]  # sentinel — never returned to user
+
+
+def _load_ground_truth() -> None:
+    """pdb_id → pK lookup. Two sources, merged:
+
+      1. preprocessed/samples_test.jsonl — ~1612 MISATO test PDBs (precomputed pK)
+      2. misato-affinity/data/affinity_data.csv — ~16k PDBs with raw Kd/Ki/IC50;
+         pK computed as 9 - log10(nM) per training preprocessor convention.
+
+    Same priority as training: Kd > Ki > IC50.
+    """
+    import csv as _csv
+    import json
+    import math
+    global _GROUND_TRUTH
+    out: dict[str, float] = {}
+
+    # Source 1: samples_test.jsonl (MISATO test split with precomputed pK)
+    candidates = [
+        Path(os.getenv("MISATO_SAMPLES_TEST", "")),
+        Path("/app/data/preprocessed/samples_test.jsonl"),
+        Path("preprocessed/samples_test.jsonl"),
+        Path("../preprocessed/samples_test.jsonl"),
+    ]
+    samples_path = next((p for p in candidates if p and p.exists()), None)
+    if samples_path:
+        with samples_path.open() as f:
+            for line in f:
+                try:
+                    s = json.loads(line)
+                except Exception:
+                    continue
+                pid = s.get("pdb_id")
+                pk = s.get("pK")
+                if pid and pk is not None:
+                    out[str(pid)] = float(pk)
+
+    # Source 2: affinity_data.csv (the full PDBbind-derived set used by training).
+    aff_candidates = [
+        Path(os.getenv("AFFINITY_CSV_PATH", "")),
+        Path("/app/data/affinity_src/affinity_data.csv"),
+        Path("misato-affinity/data/affinity_data.csv"),
+        Path("../misato-affinity/data/affinity_data.csv"),
+    ]
+    aff_path = next((p for p in aff_candidates if p and p.exists()), None)
+    if aff_path:
+        with aff_path.open() as f:
+            for row in _csv.DictReader(f, delimiter=";"):
+                pid = (row.get("PDBid") or "").strip()
+                if not pid or pid in out:
+                    continue  # samples_test.jsonl took priority
+                for col in ("Kd (nM)", "Ki (nM)", "IC50 (nM)"):
+                    val = (row.get(col) or "").strip()
+                    if val and val not in ("nan", "NA", "0.0", "0"):
+                        try:
+                            nM = float(val)
+                            if nM > 0:
+                                out[pid] = round(9.0 - math.log10(nM), 3)
+                                break
+                        except ValueError:
+                            continue
+
+    _GROUND_TRUTH = out
+    n_samples = sum(1 for _ in (samples_path.open() if samples_path else []))
+    print(f"[inference] ground-truth lookup: {len(_GROUND_TRUTH)} pdb_ids "
+          f"({n_samples} from samples_test, rest from affinity_data.csv)")
+
+
+def tunnel_health() -> dict:
+    return _TUNNEL_HEALTH
+
+
+def ground_truth_pK(pdb_id: str) -> float | None:
+    return _GROUND_TRUTH.get(pdb_id)
 
 
 def _check_sm_endpoint() -> None:
@@ -282,6 +454,12 @@ def _sm_runtime():
 def variants_loaded() -> list[str]:
     if _BACKEND == "sagemaker":
         return list(_SM_VARIANTS) if _SM_ENDPOINT_NAME else []
+    if _BACKEND == "mock":
+        return ["v1a", "v1b"] if _MOCK_SAMPLES else []
+    if _BACKEND == "tunnel":
+        # Tunnel exposes one checkpoint at a time; we present both variant
+        # labels so the UI still works, both routing to the same call.
+        return ["v1a", "v1b"] if _TUNNEL_URL and _TUNNEL_PDB_IDS else []
     return list(_LOADED.keys())
 
 
@@ -295,11 +473,32 @@ def sm_endpoint_info() -> dict:
 
 
 def is_in_test_split(pdb_id: str) -> bool:
+    # In tunnel mode, defer validation to the tunnel (its /predict 404s on unknown ids).
+    if _BACKEND == "tunnel":
+        return True
     return pdb_id in _TEST_SPLIT
 
 
 def list_pdb_ids() -> list[str]:
+    # Tunnel mode: defer to tunnel_search_ids() — the universe is 16k+ items
+    # so we don't return the full list, we expose autocomplete via /pdb_ids?q=.
+    if _BACKEND == "tunnel":
+        return []   # frontend calls /pdb_ids?q= for autocomplete instead
     return sorted(_TEST_SPLIT)
+
+
+def tunnel_search_ids(query: str, limit: int = 20) -> list[str]:
+    """Proxy the tunnel's /ids?q=&limit= autocomplete."""
+    import urllib.request, urllib.parse, json
+    if not _TUNNEL_URL:
+        return []
+    url = f"{_TUNNEL_URL}/ids?q={urllib.parse.quote(query)}&limit={limit}"
+    try:
+        with urllib.request.urlopen(url, timeout=8) as r:
+            return (json.loads(r.read()) or {}).get("ids", []) or []
+    except Exception as e:
+        print(f"[inference] tunnel /ids failed: {e}")
+        return []
 
 
 # --------------------------------------------------------------------------
@@ -328,10 +527,129 @@ def _build_batch(pdb_id: str, eos_token: str) -> list[dict]:
 
 
 def predict(pdb_id: str, variant: Variant, max_new_tokens: int = 160) -> PredictResult:
-    """Dispatch to the configured backend. Deterministic in both."""
+    """Dispatch to the configured backend. Deterministic in all four."""
     if _BACKEND == "sagemaker":
         return _predict_sagemaker(pdb_id, variant, max_new_tokens)
+    if _BACKEND == "mock":
+        return _predict_mock(pdb_id, variant)
+    if _BACKEND == "tunnel":
+        return _predict_tunnel(pdb_id, variant)
     return _predict_local(pdb_id, variant, max_new_tokens)
+
+
+# kcal/mol → pK at 298 K. ΔG ≈ -RT ln Kd; pK = -log10(Kd) = -ΔG / (RT ln10).
+# RT ln 10 ≈ 1.3633 kcal/mol at 298 K.
+_RT_LN10_KCAL = 1.3633
+
+
+def _predict_tunnel(pdb_id: str, variant: Variant) -> PredictResult:
+    """Call the remote /predict endpoint over HTTPS.
+
+    Translates the tunnel's response (affinity in kcal/mol, verdict +
+    rationale + channel_summary) into our internal PredictResult shape.
+    The full tunnel payload is preserved as `_tunnel_raw` so the FastAPI
+    route handler can pass extras through to the frontend.
+    """
+    import urllib.request, urllib.error, json
+    if not _TUNNEL_URL:
+        raise RuntimeError("TUNNEL_URL not configured")
+
+    body = json.dumps({"pdb_id": pdb_id, "tau_high": _TUNNEL_TAU_HIGH}).encode()
+    req = urllib.request.Request(
+        f"{_TUNNEL_URL}/predict",
+        data=body, method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+
+    t0 = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            data = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise KeyError(pdb_id) from e
+        raise RuntimeError(f"tunnel /predict HTTP {e.code}: {e.read()[:200]}") from e
+    rtt_ms = int((time.monotonic() - t0) * 1000)
+
+    affinity = float(data.get("affinity", 0.0))
+    pK = -affinity / _RT_LN10_KCAL if affinity else float("nan")
+    rationale = data.get("rationale", "")
+    if not rationale and data.get("raw_pred"):
+        rationale = str(data["raw_pred"]).strip()
+
+    # Build a stable model_version from tunnel /health, not from per-PDB verdict.
+    h = _TUNNEL_HEALTH or {}
+    backbone = h.get("backbone") or h.get("checkpoint") or "tunnel"
+    model_path = h.get("model_path") or ""
+    if model_path:
+        model_version = f"{backbone}@{model_path}"
+    else:
+        model_version = f"tunnel-{backbone}"
+
+    result: PredictResult = PredictResult(
+        pdb_id=pdb_id,
+        variant=variant,
+        pK=pK,
+        rationale=rationale,
+        hidden_pK=_GROUND_TRUTH.get(pdb_id),   # local samples_test.jsonl lookup
+        head_pK=None,
+        latency_ms=rtt_ms,
+        model_version=model_version,
+    )
+    # Stash the full tunnel payload for app.py to surface in the response envelope.
+    result["_tunnel_raw"] = data  # type: ignore[typeddict-unknown-key]
+    return result
+
+
+def tunnel_url() -> str:
+    return _TUNNEL_URL
+
+
+def tunnel_pdb_ids() -> list[str]:
+    return list(_TUNNEL_PDB_IDS)
+
+
+def _predict_mock(pdb_id: str, variant: Variant) -> PredictResult:
+    """Synthetic prediction from preprocessed/samples_test.jsonl.
+
+    `clean` mode: returns the templated rationale verbatim — regex
+                  verifier should mark every claim as `verified`.
+    `lossy` mode: adds ±0.3 pK noise + perturbs the FIRST numeric value
+                  in the rationale by +1.5 — verifier shows one
+                  `contradicted` claim, exercising the failure path the UI
+                  is designed to surface.
+    """
+    import re
+    sample = _MOCK_SAMPLES.get(pdb_id)
+    if sample is None:
+        raise KeyError(pdb_id)
+
+    base_pk = float(sample.get("pK"))
+    rationale = str(sample.get("rationale", ""))
+
+    if _MOCK_NOISE == "lossy":
+        # Deterministic per-PDB noise via stable hash.
+        seed = sum(ord(c) for c in pdb_id)
+        pK = round(base_pk + (((seed * 7) % 7) - 3) * 0.1, 2)  # ±0.3
+        # Perturb the first numeric token so one claim flips to contradicted.
+        rationale = re.sub(
+            r"(\d+\.\d+)",
+            lambda m: f"{float(m.group(1)) + 1.5:.2f}",
+            rationale, count=1,
+        )
+    else:
+        pK = round(base_pk, 2)
+
+    return PredictResult(
+        pdb_id=pdb_id,
+        variant=variant,
+        pK=pK,
+        rationale=rationale,
+        hidden_pK=base_pk,
+        head_pK=pK if variant == "v1b" else None,
+        latency_ms=0,
+        model_version=f"mock-{variant}-{_MOCK_NOISE}",
+    )
 
 
 def _predict_local(pdb_id: str, variant: Variant, max_new_tokens: int) -> PredictResult:
