@@ -187,9 +187,9 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
   return (
     <div className="flex flex-col gap-6">
       {/* ---------- Top Toolbar ---------- */}
-      <GlowCard className="px-5 py-3.5 fx-fade-up">
-        <div className="flex flex-wrap items-center gap-5 relative">
-          <div className="flex items-center gap-3">
+      <GlowCard className="px-4 py-3 sm:px-5 sm:py-3.5 fx-fade-up">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-3 sm:gap-5 relative">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className="text-[10px] font-mono tracking-[0.2em] uppercase"
                   style={{ color: 'var(--color-ink-dim)' }}>
               PDB
@@ -243,9 +243,9 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             )}
           </div>
 
-          <div className="h-6 w-px" style={{ background: 'var(--color-line)' }} />
+          <div className="hidden sm:block h-6 w-px" style={{ background: 'var(--color-line)' }} />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <span className="text-[10px] font-mono tracking-[0.2em] uppercase"
                   style={{ color: 'var(--color-ink-dim)' }}>
               Variant
@@ -253,7 +253,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             <Segmented value={variant} options={['v1a', 'v1b'] as const} onChange={onVariantChange} />
           </div>
 
-          <div className="ml-auto flex items-center gap-3">
+          <div className="ml-auto flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
             {health && health.status !== 'ready' && (
               <span className="text-[11px] font-mono px-2 py-1 rounded"
                     style={{
@@ -267,7 +267,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             <button
               disabled={predictLoading}
               onClick={handlePredict}
-              className="btn-primary rounded-lg px-5 py-2 text-sm flex items-center gap-2"
+              className="btn-primary rounded-lg px-4 sm:px-5 py-2 text-sm flex items-center gap-2"
             >
               {predictLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
               {predictLoading ? 'Predicting…' : 'Predict'}
@@ -345,7 +345,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             a.click();
             URL.revokeObjectURL(url);
           }}
-          className="ml-auto rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          className="sm:ml-auto rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
             background: 'rgba(84, 103, 242, 0.12)',
             color: '#5467F2',
@@ -379,7 +379,7 @@ function PredictionCard({ prediction }: { prediction: PredictResponse | null }) 
       <CardHeader icon={<Activity size={14} style={{ color: '#5467F2' }} />}>
         Prediction
       </CardHeader>
-      <div className="p-5 grid grid-cols-[140px_1fr] gap-y-3 text-sm">
+      <div className="p-4 sm:p-5 grid grid-cols-[110px_1fr] sm:grid-cols-[140px_1fr] gap-y-3 gap-x-3 text-sm">
         <Label>Predicted pK</Label>
         <span className="font-mono font-semibold text-2xl tracking-tight"
               style={{ color: 'var(--color-ink)' }}>
@@ -573,6 +573,9 @@ function StructurePanel({
   onFrameChange: (f: number) => void;
 }) {
   const [mode, setMode] = useState<'image' | 'live'>('live');
+  const [imageAvailable, setImageAvailable] = useState(true);
+  // Reset availability when pdb changes — backend may serve a different system.
+  useEffect(() => { setImageAvailable(true); }, [pdb]);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const mdFrame = Math.max(0, Math.min(currentFrame, 99));
   const imgSrc = `/api/frame_image/${encodeURIComponent(pdb)}?frame=${mdFrame}&width=600`;
@@ -608,14 +611,20 @@ function StructurePanel({
         <span className="viewer-corner bl" />
         <span className="viewer-corner br" />
 
-        {mode === 'image' && (
+        {mode === 'image' && imageAvailable && (
           <img
             key={`${pdb}-${mdFrame}`}
             src={imgSrc}
             alt={`${pdb} frame ${mdFrame}`}
             className="absolute inset-0 w-full h-full object-contain"
-            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            onError={() => { setImageAvailable(false); }}
           />
+        )}
+        {mode === 'image' && !imageAvailable && (
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-mono italic px-4 text-center"
+               style={{ color: '#FF9900' }}>
+            backend /frame_image unavailable — try the live viewer
+          </div>
         )}
         {mode === 'live' && (
           <>

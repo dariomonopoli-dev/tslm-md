@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 
 import { MoleculeHero } from '../components/MoleculeHero.tsx';
-import { AnimatedNumber } from '../components/AnimatedNumber.tsx';
 
 interface AboutViewProps {
   onGoToSingle?: (pdb: string) => void;
@@ -77,9 +76,9 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
               <MoleculeHero pdb={heroPdb} className="absolute inset-0" />
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <span className="stamp">SYSTEM SELECTOR</span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {HERO_PDBS.map((id, i) => (
                   <button
                     key={id}
@@ -98,12 +97,6 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
             </div>
           </div>
 
-          <div className="col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-7 sm:gap-y-0 mt-4 fx-fade-up"
-               style={{ animationDelay: '300ms' }}>
-            <Stat label="Test systems"        value={130}  decimals={0} />
-            <Stat label="Channels per frame" value={4}    decimals={0} />
-            <Stat label="Avg pK error"       value={0.43} decimals={2} suffix=" pK" />
-          </div>
         </div>
       </section>
 
@@ -130,38 +123,6 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
       </section>
 
       {/* ============================================================
-         PIPELINE: deck architecture slide
-         ============================================================ */}
-      <section className="flex flex-col gap-8 fx-fade-up">
-        <SectionLockup id="03" eyebrow="The pipeline" title="A four-stage audit."
-                       subtitle="Every claim has to defend itself against orthogonal evidence." />
-        <PipelineDiagram />
-      </section>
-
-      {/* ============================================================
-         IS / IS NOT
-         ============================================================ */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6 fx-fade-up">
-        <SpecimenList refId="REF 04.1" eyebrow="IS"
-          title="What this demo is."
-          tone="brand"
-          items={[
-            'An application of OpenTSLM-Flamingo to a new modality: MD trajectories.',
-            'Grounded rationales. Every claim checkable against the input channels or independent physics.',
-            'An auditable AI. The agent shows its work, cites its sources, respects independence.',
-          ]} />
-        <SpecimenList refId="REF 04.2" eyebrow="IS NOT"
-          title="What this demo is not."
-          tone="warn"
-          items={[
-            'A production drug-discovery tool. Demo-grade artifact.',
-            'A replacement for wet-lab assays. Use as a triage layer.',
-            'A regulatory or clinical decision tool.',
-            'A model that beats experimental accuracy. 10 ns of MD limits resolution to ~±0.3 pK.',
-          ]} />
-      </section>
-
-      {/* ============================================================
          INDEPENDENCE: printed specimen sheet
          ============================================================ */}
       <section className="fx-fade-up">
@@ -170,14 +131,14 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
           <span className="tick-bl" />
           <div className="flex items-start justify-between mb-7 gap-6 flex-wrap">
             <div>
-              <span className="sec-id"><span className="num">05</span> &nbsp;/&nbsp; GUARDRAILS</span>
+              <span className="sec-id"><span className="num">03</span> &nbsp;/&nbsp; GUARDRAILS</span>
               <h3 className="font-display font-bold tracking-[-0.025em] text-[clamp(1.8rem,1rem+1.6vw,2.6rem)] mt-3"
                   style={{ color: 'var(--color-ink)' }}>
                 Independence <span className="serif" style={{ color: 'var(--color-brand)' }}>guarantees.</span>
               </h3>
             </div>
             <div className="text-right">
-              <div className="stamp">REF 05.0 · I.S.O. · TRAJECTA</div>
+              <div className="stamp">REF 03.0 · I.S.O. · TRAJECTA</div>
               <div className="stamp mt-1" style={{ color: 'var(--color-brand)' }}>v0.1 · audited</div>
             </div>
           </div>
@@ -236,26 +197,6 @@ function SectionLockup({ id, eyebrow, title, subtitle }:
   );
 }
 
-function Stat({ label, value, decimals = 0, suffix = '' }:
-  { label: string; value: number; decimals?: number; suffix?: string }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <span className="rule-strong fx-rule-draw" />
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] font-mono tracking-[0.22em] uppercase"
-              style={{ color: 'var(--color-ink-dim)' }}>
-          {label}
-        </span>
-        <span className="stamp" style={{ color: 'var(--color-brand)' }}>↑</span>
-      </div>
-      <div className="display-num text-[clamp(2.4rem,1rem+3vw,4rem)]"
-           style={{ color: 'var(--color-ink)' }}>
-        <AnimatedNumber value={value} decimals={decimals} suffix={suffix} duration={1400} />
-      </div>
-    </div>
-  );
-}
-
 function ExampleCard({
   n, pdb, tone, tag, title, blurb, onClick,
 }: {
@@ -309,150 +250,6 @@ function MiniSchematic({ tone }: { tone: string }) {
       <circle cx="88" cy="22" r="6" fill="none" stroke="var(--color-mol-stroke)" strokeWidth="2.5" />
       <circle cx="46" cy="64" r="5" fill="none" stroke="var(--color-mol-stroke)" strokeWidth="2.5" />
     </svg>
-  );
-}
-
-const PIPELINE: Array<{
-  step: string; title: string; sub: string; kind: 'ours' | 'base';
-}> = [
-  { step: '01', title: 'MD trajectory',   sub: '10 ch × 30 frames',     kind: 'ours' },
-  { step: '02', title: 'Chronos-2',       sub: 'time-series encoder',   kind: 'ours' },
-  { step: '03', title: 'Perceiver',       sub: 'resampler → latents',   kind: 'base' },
-  { step: '04', title: 'Llama-3.2-1B',    sub: '❄ frozen · cross-attn', kind: 'base' },
-  { step: '05', title: 'Regression head', sub: 'L1 loss on ΔG',         kind: 'ours' },
-];
-
-function PipelineDiagram() {
-  return (
-    <div className="panel p-5 sm:p-7 relative overflow-hidden">
-      <div className="flex items-stretch gap-3 overflow-x-auto no-scrollbar pt-3 -mx-1 px-1">
-        {PIPELINE.map((p, i) => (
-          <PipelineStep key={p.step} {...p} last={i === PIPELINE.length - 1} />
-        ))}
-        <PipelineOut />
-      </div>
-      <div className="flex flex-wrap items-center gap-3 sm:gap-6 mt-6 pt-6 border-t" style={{ borderColor: 'var(--color-line)' }}>
-        <LegendSwatch tone="base" label="OpenTSLM-Flamingo (the paper)" />
-        <LegendSwatch tone="ours" label="What we added for molecular dynamics" />
-      </div>
-    </div>
-  );
-}
-
-function PipelineStep({ step, title, sub, kind, last }:
-  { step: string; title: string; sub: string; kind: 'ours' | 'base'; last?: boolean }) {
-  const isOurs = kind === 'ours';
-  return (
-    <div className="flex items-center gap-3 shrink-0">
-      <div
-        className="relative w-[180px] h-[88px] rounded-xl flex flex-col items-center justify-center text-center px-3"
-        style={{
-          background: isOurs ? 'var(--color-brand-tint)' : 'var(--color-bg-soft)',
-          border: isOurs ? '2px solid var(--color-brand)' : '1.5px solid var(--color-line)',
-        }}
-      >
-        {isOurs && (
-          <span
-            className="absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full text-[9.5px] font-mono font-bold tracking-[0.14em] uppercase"
-            style={{ background: 'var(--color-brand)', color: '#fff' }}
-          >
-            + ours
-          </span>
-        )}
-        <span className="stamp" style={{ color: 'var(--color-ink-dim)' }}>{step}</span>
-        <div className="font-display font-semibold text-[15px] mt-1 tracking-tight"
-             style={{ color: isOurs ? 'var(--color-ink)' : 'var(--color-ink-2)' }}>
-          {title}
-        </div>
-        <div className="text-[11px] font-mono mt-0.5"
-             style={{ color: 'var(--color-ink-mute)' }}>
-          {sub}
-        </div>
-      </div>
-      {!last && (
-        <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden>
-          <path d="M2 10 L16 10 M11 5 L16 10 L11 15" stroke="var(--color-mol-stroke)"
-                strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
-    </div>
-  );
-}
-
-function PipelineOut() {
-  return (
-    <div className="flex items-center gap-3 shrink-0">
-      <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden>
-        <path d="M2 10 L16 10 M11 5 L16 10 L11 15" stroke="var(--color-mol-stroke)"
-              strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <div
-        className="w-[140px] h-[64px] rounded-full flex flex-col items-center justify-center"
-        style={{
-          background: 'var(--color-brand)',
-          color: '#fff',
-          boxShadow: '0 8px 20px -8px rgba(84, 103, 242, 0.55)',
-        }}
-      >
-        <div className="font-display font-semibold text-[15px] tracking-tight">binding ΔG</div>
-        <div className="text-[11px] font-mono mt-0.5" style={{ color: '#dfe4ff' }}>kcal/mol</div>
-      </div>
-    </div>
-  );
-}
-
-function LegendSwatch({ tone, label }: { tone: 'ours' | 'base'; label: string }) {
-  return (
-    <div className="flex items-center gap-2.5 text-[13px]"
-         style={{ color: 'var(--color-ink-mute)' }}>
-      <span
-        className="block w-6 h-4 rounded-[4px]"
-        style={
-          tone === 'ours'
-            ? { background: 'var(--color-brand-tint)', border: '2px solid var(--color-brand)' }
-            : { background: 'var(--color-bg-soft)',    border: '1.5px solid var(--color-line)' }
-        }
-      />
-      {label}
-    </div>
-  );
-}
-
-function SpecimenList({ refId, eyebrow, title, tone, items }:
-  { refId: string; eyebrow: string; title: string; tone: 'brand' | 'warn'; items: string[] }) {
-  const c = tone === 'brand' ? 'var(--color-brand)' : 'var(--color-warn)';
-  return (
-    <div className="panel ticks p-7 relative">
-      <span className="tick-tr" />
-      <span className="tick-bl" />
-      <div className="flex items-start justify-between mb-4">
-        <span className="eyebrow" style={{ color: c }}>{eyebrow}</span>
-        <span className="stamp">{refId}</span>
-      </div>
-      <h3 className="font-display font-bold tracking-[-0.025em] text-[26px] leading-[1.05] mb-6"
-          style={{ color: 'var(--color-ink)' }}>
-        {title}
-      </h3>
-      <ol className="space-y-0">
-        {items.map((it, i) => (
-          <li key={i}
-              className="flex items-start gap-4 py-3.5"
-              style={{
-                borderTop: i === 0 ? '1.5px solid var(--color-line)' : 'none',
-                borderBottom: '1.5px solid var(--color-line)',
-              }}>
-            <span className="font-mono text-[11px] tracking-[0.18em] pt-1 shrink-0 w-6"
-                  style={{ color: c }}>
-              {String(i + 1).padStart(2, '0')}
-            </span>
-            <span className="text-[14.5px] leading-[1.55]"
-                  style={{ color: 'var(--color-ink-2)' }}>
-              {it}
-            </span>
-          </li>
-        ))}
-      </ol>
-    </div>
   );
 }
 

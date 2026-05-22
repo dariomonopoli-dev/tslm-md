@@ -503,6 +503,21 @@ input[type="checkbox"] { accent-color: var(--color-brand); }
 .mol-bond   { stroke: var(--color-mol-stroke); stroke-width: 3; }
 .mol-lig    { animation: wob 3s ease-in-out infinite; transform-origin: center; }
 
+/* Sticky header — translucent surface with a hairline so content doesn't bleed through */
+.site-header {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid rgba(20, 22, 43, 0.06);
+  box-shadow: 0 4px 20px -16px rgba(20, 22, 43, 0.18);
+}
+
+/* Brand mark — slow orbit + soft hover lift */
+.brand-mark { transition: transform 320ms var(--ease-out-soft), filter 320ms ease; }
+.group:hover .brand-mark { transform: translateY(-1px) scale(1.04); filter: drop-shadow(0 6px 12px rgba(84, 103, 242, 0.25)); }
+.brand-orbit { transform-origin: 32px 32px; animation: orbit 18s linear infinite; }
+.brand-lig   { animation: wob 4s ease-in-out infinite; transform-origin: 32px 32px; }
+
 /* -------------------------------------------------------------------
    Recharts light theme
    ------------------------------------------------------------------- */
