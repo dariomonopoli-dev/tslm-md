@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, ArrowUpRight } from 'lucide-react';
 
 import { MoleculeHero } from '../components/MoleculeHero.tsx';
-import { AnimatedNumber } from '../components/AnimatedNumber.tsx';
 
 interface AboutViewProps {
   onGoToSingle?: (pdb: string) => void;
@@ -77,9 +76,9 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
               <MoleculeHero pdb={heroPdb} className="absolute inset-0" />
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <span className="stamp">SYSTEM SELECTOR</span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {HERO_PDBS.map((id, i) => (
                   <button
                     key={id}
@@ -98,12 +97,6 @@ export function AboutView({ onGoToSingle, onGoToTab }: AboutViewProps) {
             </div>
           </div>
 
-          <div className="col-span-12 grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-7 sm:gap-y-0 mt-4 fx-fade-up"
-               style={{ animationDelay: '300ms' }}>
-            <Stat label="Test systems"        value={130}  decimals={0} />
-            <Stat label="Channels per frame" value={4}    decimals={0} />
-            <Stat label="Avg pK error"       value={0.43} decimals={2} suffix=" pK" />
-          </div>
         </div>
       </section>
 
@@ -232,26 +225,6 @@ function SectionLockup({ id, eyebrow, title, subtitle }:
           {subtitle}
         </p>
       )}
-    </div>
-  );
-}
-
-function Stat({ label, value, decimals = 0, suffix = '' }:
-  { label: string; value: number; decimals?: number; suffix?: string }) {
-  return (
-    <div className="flex flex-col gap-3">
-      <span className="rule-strong fx-rule-draw" />
-      <div className="flex items-baseline justify-between">
-        <span className="text-[10px] font-mono tracking-[0.22em] uppercase"
-              style={{ color: 'var(--color-ink-dim)' }}>
-          {label}
-        </span>
-        <span className="stamp" style={{ color: 'var(--color-brand)' }}>↑</span>
-      </div>
-      <div className="display-num text-[clamp(2.4rem,1rem+3vw,4rem)]"
-           style={{ color: 'var(--color-ink)' }}>
-        <AnimatedNumber value={value} decimals={decimals} suffix={suffix} duration={1400} />
-      </div>
     </div>
   );
 }
