@@ -573,6 +573,9 @@ function StructurePanel({
   onFrameChange: (f: number) => void;
 }) {
   const [mode, setMode] = useState<'image' | 'live'>('live');
+  const [imageAvailable, setImageAvailable] = useState(true);
+  // Reset availability when pdb changes — backend may serve a different system.
+  useEffect(() => { setImageAvailable(true); }, [pdb]);
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
   const mdFrame = Math.max(0, Math.min(currentFrame, 99));
   const imgSrc = `/api/frame_image/${encodeURIComponent(pdb)}?frame=${mdFrame}&width=600`;
@@ -608,14 +611,20 @@ function StructurePanel({
         <span className="viewer-corner bl" />
         <span className="viewer-corner br" />
 
-        {mode === 'image' && (
+        {mode === 'image' && imageAvailable && (
           <img
             key={`${pdb}-${mdFrame}`}
             src={imgSrc}
             alt={`${pdb} frame ${mdFrame}`}
             className="absolute inset-0 w-full h-full object-contain"
-            onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            onError={() => { setImageAvailable(false); }}
           />
+        )}
+        {mode === 'image' && !imageAvailable && (
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-mono italic px-4 text-center"
+               style={{ color: '#FF9900' }}>
+            backend /frame_image unavailable — try the live viewer
+          </div>
         )}
         {mode === 'live' && (
           <>

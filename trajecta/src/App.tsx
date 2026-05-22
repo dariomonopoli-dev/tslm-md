@@ -42,11 +42,11 @@ export default function App() {
       <BackgroundFX />
 
       {/* ---------- Pitch-deck nav: pill tabs, active = bordered ink ---------- */}
-      <header className="sticky top-0 z-40 px-4 sm:px-6 pt-4 sm:pt-6 pb-2 sm:pb-3">
-        <div className="max-w-[1320px] mx-auto flex items-center justify-between gap-3 sm:gap-6">
+      <header className="sticky top-0 z-40 site-header">
+        <div className="max-w-[1320px] mx-auto px-4 sm:px-6 pt-3 sm:pt-5 pb-2 sm:pb-3 flex items-center justify-between gap-3 sm:gap-6">
           <Brand onClick={() => setView('about')} />
 
-          <nav className="hidden md:flex items-center gap-2">
+          <nav className="hidden lg:flex items-center gap-2 min-w-0">
             {TABS.map((tab) => {
               const active = view === tab.id;
               return (
@@ -65,7 +65,7 @@ export default function App() {
             href="https://github.com"
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-2 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-[12px] font-mono tracking-wider transition shadow-card"
+            className="shrink-0 flex items-center gap-2 rounded-full px-3 py-1.5 sm:px-4 sm:py-2 text-[11px] sm:text-[12px] font-mono tracking-wider transition shadow-card"
             style={{
               color: 'var(--color-ink-2)',
               background: '#ffffff',
@@ -77,9 +77,9 @@ export default function App() {
           </a>
         </div>
 
-        {/* mobile: horizontal pill strip below the brand row */}
+        {/* mobile / tablet: horizontal pill strip below the brand row */}
         <nav
-          className="md:hidden mt-3 -mx-4 px-4 flex items-center gap-1 overflow-x-auto scrollbar-none"
+          className="lg:hidden max-w-[1320px] mx-auto px-4 pb-2 sm:pb-3 flex items-center gap-1 overflow-x-auto scrollbar-none"
           aria-label="Sections"
         >
           {TABS.map((tab) => {

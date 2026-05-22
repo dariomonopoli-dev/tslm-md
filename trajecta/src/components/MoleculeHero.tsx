@@ -22,12 +22,17 @@ export function MoleculeHero({ pdb, className, filmstrip = false }: MoleculeHero
   const [parsed, setParsed] = useState<boolean | null>(null);
   const [pdbString, setPdbString] = useState<string | null>(null);
   const [filmFrame, setFilmFrame] = useState(0);
+  // Stop polling /frame_image once a single request fails — backend may be
+  // offline (Vercel preview, local without inference-service). Resets on pdb.
+  const [filmAvailable, setFilmAvailable] = useState(true);
 
   // Fetch PDB string.
   useEffect(() => {
     let cancelled = false;
     setParsed(null);
     setPdbString(null);
+    setFilmAvailable(true);
+    setFilmFrame(0);
     (async () => {
       const res = await api.pdbString(pdb);
       if (cancelled) return;
@@ -92,15 +97,17 @@ export function MoleculeHero({ pdb, className, filmstrip = false }: MoleculeHero
   }, [pdbString]);
 
   // Filmstrip cycler — runs whenever 3Dmol failed OR explicitly requested.
+  // Stops as soon as a frame image fails to load (backend offline).
   useEffect(() => {
+    if (!filmAvailable) return;
     if (!filmstrip && parsed !== false) return;
     const id = window.setInterval(() => {
       setFilmFrame(f => (f + 1) % 100);
     }, 110);
     return () => window.clearInterval(id);
-  }, [filmstrip, parsed]);
+  }, [filmstrip, parsed, filmAvailable]);
 
-  const showFilmstrip = filmstrip || parsed === false;
+  const showFilmstrip = (filmstrip || parsed === false) && filmAvailable;
 
   return (
     <div className={`viewer-frame rounded-2xl ${className ?? ''}`}>
@@ -117,7 +124,7 @@ export function MoleculeHero({ pdb, className, filmstrip = false }: MoleculeHero
           src={`/api/frame_image/${encodeURIComponent(pdb)}?frame=${filmFrame}&width=900`}
           alt={`${pdb} frame ${filmFrame}`}
           className="absolute inset-0 w-full h-full object-contain opacity-90"
-          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          onError={() => { setFilmAvailable(false); }}
         />
       )}
 
