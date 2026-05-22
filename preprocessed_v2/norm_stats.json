@@ -1,0 +1,95 @@
+{
+  "channel_order": [
+    "rmsd_ligand",
+    "interaction_energy",
+    "distance",
+    "bSASA",
+    "pocket_rmsd",
+    "ligand_rgyr",
+    "min_contact_distance",
+    "n_contacts_4A",
+    "n_polar_contacts_35A",
+    "n_hydrophobic_contacts_45A",
+    "ligand_internal_rmsd",
+    "com_dist_velocity"
+  ],
+  "clip_bounds": {
+    "rmsd_ligand": [
+      0.0,
+      50.0
+    ],
+    "interaction_energy": [
+      -500.0,
+      50.0
+    ],
+    "distance": [
+      0.0,
+      50.0
+    ],
+    "bSASA": [
+      0.0,
+      2500.0
+    ],
+    "pocket_rmsd": [
+      0.0,
+      10.0
+    ],
+    "ligand_rgyr": [
+      0.0,
+      25.0
+    ],
+    "min_contact_distance": [
+      0.0,
+      20.0
+    ],
+    "n_contacts_4A": [
+      0.0,
+      1000.0
+    ],
+    "n_polar_contacts_35A": [
+      0.0,
+      50.0
+    ],
+    "n_hydrophobic_contacts_45A": [
+      0.0,
+      500.0
+    ],
+    "ligand_internal_rmsd": [
+      0.0,
+      10.0
+    ],
+    "com_dist_velocity": [
+      0.0,
+      5.0
+    ]
+  },
+  "train_mean": [
+    2.9133410453796387,
+    -32.33284378051758,
+    15.118926048278809,
+    537.0286254882812,
+    1.58304762840271,
+    5.098075866699219,
+    1.9371883869171143,
+    184.0355224609375,
+    5.863951206207275,
+    169.9096221923828,
+    1.347281813621521,
+    0.2977299690246582
+  ],
+  "train_std": [
+    3.8270485401153564,
+    34.141502380371094,
+    8.050786972045898,
+    238.41859436035156,
+    0.43820542097091675,
+    1.5744386911392212,
+    1.2391588687896729,
+    87.7529525756836,
+    4.84014368057251,
+    90.54582977294922,
+    0.7661504149436951,
+    0.36624059081077576
+  ],
+  "n_train_systems": 13758
+}

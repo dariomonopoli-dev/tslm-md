@@ -72,6 +72,22 @@ class OpenTSLMSP(TimeSeriesLLM):
         self.regression_weight: float = 0.0
         self.regression_head: Optional[nn.Module] = None
 
+        # Optional multi-task heads (v2 stack). Each reads the same pooled
+        # hidden state and produces an auxiliary supervision signal. Weights
+        # of 0 disable the corresponding loss term.
+        self.multitask_enabled: bool = False
+        self.dissoc_head: Optional[nn.Module] = None
+        self.drift_head: Optional[nn.Module] = None
+        self.aux_reg_head: Optional[nn.Module] = None
+        self.multitask_weights: Dict[str, float] = {
+            "dissoc": 0.0, "drift": 0.0, "aux_reg": 0.0,
+        }
+
+        # Optional pair-ranking loss on the regression head's scalar output.
+        # Targets Pearson R rather than absolute pK. Margin in pK units.
+        self.ranking_weight: float = 0.0
+        self.ranking_margin: float = 0.5
+
         # Freeze the LLM backbone for SP model (internally)
         for p in self.llm.parameters():
             p.requires_grad = False
@@ -196,6 +212,79 @@ class OpenTSLMSP(TimeSeriesLLM):
         if not self.regression_enabled or self.regression_head is None:
             return []
         return list(self.regression_head.parameters())
+
+    def enable_multitask(
+        self,
+        dissoc_weight: float = 0.1,
+        drift_weight: float = 0.1,
+        aux_reg_weight: float = 0.05,
+        hidden_dim: int = 256,
+        dropout: float = 0.1,
+    ) -> None:
+        """Attach binary + scalar auxiliary heads on the pooled hidden state.
+
+        Heads (each a small 2-layer MLP, ~150k params total):
+          - dissoc_head  : sigmoid → BCE on batch["dissociated"]
+          - drift_head   : sigmoid → BCE on batch["ligand_drift"]
+          - aux_reg_head : scalar  → MSE on batch["bsasa_drift"] (in raw units)
+
+        compute_loss adds `Σ_k weight_k · L_k` once enabled, but only for
+        batches whose samples carry the corresponding fields. Setting a
+        weight to 0 disables that loss term while keeping the head's
+        parameters in the checkpoint.
+        """
+        if self.multitask_enabled:
+            raise RuntimeError("multitask heads already enabled")
+        H = self.llm.config.hidden_size
+
+        def _head(out_dim: int) -> nn.Module:
+            return nn.Sequential(
+                nn.Linear(H, hidden_dim),
+                nn.GELU(),
+                nn.Dropout(dropout),
+                nn.Linear(hidden_dim, out_dim),
+            )
+
+        self.dissoc_head = _head(1).to(self.device)
+        self.drift_head = _head(1).to(self.device)
+        self.aux_reg_head = _head(1).to(self.device)
+        self.multitask_weights = {
+            "dissoc": float(dissoc_weight),
+            "drift": float(drift_weight),
+            "aux_reg": float(aux_reg_weight),
+        }
+        self.multitask_enabled = True
+        n_params = sum(p.numel() for m in (self.dissoc_head, self.drift_head,
+                                            self.aux_reg_head)
+                       for p in m.parameters())
+        print(f"✅ multitask heads enabled: {n_params:,} params, "
+              f"weights={self.multitask_weights}")
+
+    def get_multitask_parameters(self) -> List[nn.Parameter]:
+        if not self.multitask_enabled:
+            return []
+        params: List[nn.Parameter] = []
+        for h in (self.dissoc_head, self.drift_head, self.aux_reg_head):
+            if h is not None:
+                params.extend(h.parameters())
+        return params
+
+    def enable_ranking_loss(self, weight: float = 0.2, margin: float = 0.5) -> None:
+        """Activate margin-based pair ranking loss on the regression head's pK.
+
+        Requires `enable_regression()` to have been called — the head's scalar
+        output is the quantity we rank. Pairs are sampled in-batch (B-1 pairs
+        from a random permutation, no self-pair). Adds
+            weight · Σ_pairs max(0, margin − sign(pK_i−pK_j)·(h_i−h_j))
+        to the total loss. Margin in pK units.
+        """
+        if not self.regression_enabled:
+            raise RuntimeError(
+                "Ranking loss needs a regression head; call enable_regression() first."
+            )
+        self.ranking_weight = float(weight)
+        self.ranking_margin = float(margin)
+        print(f"✅ ranking loss enabled: weight={weight}, margin={margin} pK")
 
     def disable_lora(self):
         """Disable LoRA and revert to original frozen LLM."""
@@ -363,14 +452,18 @@ class OpenTSLMSP(TimeSeriesLLM):
         )
         return self.tokenizer.batch_decode(gen_ids, skip_special_tokens=True)
 
-    def compute_loss(self, batch: List[Dict[str, any]]) -> torch.Tensor:
-        """
-        batch: same format as generate()
-        answers: List[str] of length B
+    def compute_loss(self, batch: List[Dict[str, any]],
+                     return_breakdown: bool = False):
+        """Compute LM loss, optionally augmented with v1b regression, multi-task
+        auxiliary heads, and a pair-ranking loss.
 
-        If `self.regression_enabled` and every sample carries a "pK" float,
-        also adds `self.regression_weight * MSE(head(pooled), pK)` where the
-        pool is the last non-pad input-position hidden state per sample.
+        Returns:
+          - tensor `loss` if return_breakdown=False (back-compat with trainer)
+          - (loss, dict) where dict has float values for each loss term, useful
+            for W&B logging or sanity checks.
+
+        The pooled hidden state used by all heads is the LLM's last non-pad
+        INPUT position (not answer positions) — same as the v1b head.
         """
         answers = [b["answer"] for b in batch]
 
@@ -399,27 +492,109 @@ class OpenTSLMSP(TimeSeriesLLM):
             and self.regression_head is not None
             and all("pK" in b for b in batch)
         )
+        run_multitask = self.multitask_enabled and (
+            self.dissoc_head is not None
+            or self.drift_head is not None
+            or self.aux_reg_head is not None
+        )
+        need_hidden = run_regression or run_multitask
+
         outputs = self.llm(
             inputs_embeds=full_embeds,
             attention_mask=full_mask,
             labels=labels,
             return_dict=True,
-            output_hidden_states=run_regression,
+            output_hidden_states=need_hidden,
         )
-        if not run_regression:
-            return outputs.loss
+
+        breakdown: Dict[str, float] = {"lm": float(outputs.loss.detach())}
+        if not need_hidden:
+            total = outputs.loss
+            return (total, breakdown) if return_breakdown else total
 
         # Pool the last non-pad input position per sample.
         input_lengths = input_attention_mask.sum(dim=1).long()  # [B]
         last_idx = (input_lengths - 1).clamp(min=0)
         last_hidden = outputs.hidden_states[-1]  # [B, L+A, H]
         pooled = last_hidden[torch.arange(B, device=self.device), last_idx]
-        pK_pred = self.regression_head(pooled.to(self.regression_head[0].weight.dtype)).squeeze(-1)
-        pK_true = torch.tensor(
-            [b["pK"] for b in batch], device=self.device, dtype=pK_pred.dtype
-        )
-        mse = F.mse_loss(pK_pred, pK_true)
-        return outputs.loss + self.regression_weight * mse
+
+        total = outputs.loss
+
+        # --- v1b regression head ---
+        pK_pred = None
+        if run_regression:
+            head_dtype = self.regression_head[0].weight.dtype
+            pK_pred = self.regression_head(pooled.to(head_dtype)).squeeze(-1)
+            pK_true = torch.tensor(
+                [b["pK"] for b in batch], device=self.device, dtype=pK_pred.dtype
+            )
+            mse = F.mse_loss(pK_pred, pK_true)
+            total = total + self.regression_weight * mse
+            breakdown["regression_mse"] = float(mse.detach())
+
+        # --- ranking loss on the regression head's scalar output ---
+        if (run_regression and self.ranking_weight > 0
+                and pK_pred is not None and B >= 2):
+            pK_true_t = torch.tensor(
+                [b["pK"] for b in batch], device=self.device, dtype=pK_pred.dtype
+            )
+            # Use a random permutation to pair each sample with a different one.
+            perm = torch.randperm(B, device=self.device)
+            mask = perm != torch.arange(B, device=self.device)
+            if mask.any():
+                idx_i = torch.arange(B, device=self.device)[mask]
+                idx_j = perm[mask]
+                diff_pred = pK_pred[idx_i] - pK_pred[idx_j]
+                diff_true = pK_true_t[idx_i] - pK_true_t[idx_j]
+                sign = torch.sign(diff_true)
+                rank = F.relu(self.ranking_margin - sign * diff_pred).mean()
+                total = total + self.ranking_weight * rank
+                breakdown["ranking"] = float(rank.detach())
+
+        # --- multi-task auxiliary heads ---
+        if run_multitask:
+            head_dtype = (self.dissoc_head[0].weight.dtype
+                          if self.dissoc_head is not None
+                          else pooled.dtype)
+            pooled_h = pooled.to(head_dtype)
+
+            if (self.dissoc_head is not None and self.multitask_weights["dissoc"] > 0
+                    and all("dissociated" in b for b in batch)):
+                logits = self.dissoc_head(pooled_h).squeeze(-1)
+                targets = torch.tensor(
+                    [float(b["dissociated"]) for b in batch],
+                    device=self.device, dtype=logits.dtype,
+                )
+                loss_d = F.binary_cross_entropy_with_logits(logits, targets)
+                total = total + self.multitask_weights["dissoc"] * loss_d
+                breakdown["aux_dissoc_bce"] = float(loss_d.detach())
+
+            if (self.drift_head is not None and self.multitask_weights["drift"] > 0
+                    and all("ligand_drift" in b for b in batch)):
+                logits = self.drift_head(pooled_h).squeeze(-1)
+                targets = torch.tensor(
+                    [float(b["ligand_drift"]) for b in batch],
+                    device=self.device, dtype=logits.dtype,
+                )
+                loss_dr = F.binary_cross_entropy_with_logits(logits, targets)
+                total = total + self.multitask_weights["drift"] * loss_dr
+                breakdown["aux_drift_bce"] = float(loss_dr.detach())
+
+            if (self.aux_reg_head is not None and self.multitask_weights["aux_reg"] > 0
+                    and all("bsasa_drift" in b for b in batch)):
+                pred = self.aux_reg_head(pooled_h).squeeze(-1)
+                targets = torch.tensor(
+                    [b["bsasa_drift"] for b in batch],
+                    device=self.device, dtype=pred.dtype,
+                )
+                # Rescale target by 100 (raw Å² range is ~[-500, +500]) so the
+                # MSE magnitude is comparable to other losses.
+                loss_a = F.mse_loss(pred, targets / 100.0)
+                total = total + self.multitask_weights["aux_reg"] * loss_a
+                breakdown["aux_bsasa_drift_mse"] = float(loss_a.detach())
+
+        breakdown["total"] = float(total.detach())
+        return (total, breakdown) if return_breakdown else total
 
     @torch.no_grad()
     def predict_pK(self, batch: List[Dict[str, any]]) -> List[float]:
@@ -462,6 +637,20 @@ class OpenTSLMSP(TimeSeriesLLM):
             checkpoint["regression_enabled"] = True
             checkpoint["regression_weight"] = self.regression_weight
             checkpoint["regression_head_state"] = self.regression_head.state_dict()
+            if self.ranking_weight > 0:
+                checkpoint["ranking_weight"] = self.ranking_weight
+                checkpoint["ranking_margin"] = self.ranking_margin
+
+        # Add multi-task heads (v2 stack)
+        if self.multitask_enabled:
+            checkpoint["multitask_enabled"] = True
+            checkpoint["multitask_weights"] = self.multitask_weights
+            if self.dissoc_head is not None:
+                checkpoint["dissoc_head_state"] = self.dissoc_head.state_dict()
+            if self.drift_head is not None:
+                checkpoint["drift_head_state"] = self.drift_head.state_dict()
+            if self.aux_reg_head is not None:
+                checkpoint["aux_reg_head_state"] = self.aux_reg_head.state_dict()
 
         torch.save(checkpoint, path)
 
@@ -478,7 +667,28 @@ class OpenTSLMSP(TimeSeriesLLM):
             if not self.regression_enabled:
                 self.enable_regression(weight=ckpt.get("regression_weight", 0.5))
             self.regression_head.load_state_dict(ckpt["regression_head_state"])
+            if "ranking_weight" in ckpt:
+                self.ranking_weight = float(ckpt["ranking_weight"])
+                self.ranking_margin = float(ckpt.get("ranking_margin", 0.5))
             print(f"📥 Loaded regression head (weight={self.regression_weight})")
+
+        # Load multi-task heads if present
+        if ckpt.get("multitask_enabled", False):
+            mt_w = ckpt.get("multitask_weights",
+                            {"dissoc": 0.1, "drift": 0.1, "aux_reg": 0.05})
+            if not self.multitask_enabled:
+                self.enable_multitask(
+                    dissoc_weight=mt_w.get("dissoc", 0.1),
+                    drift_weight=mt_w.get("drift", 0.1),
+                    aux_reg_weight=mt_w.get("aux_reg", 0.05),
+                )
+            if "dissoc_head_state" in ckpt and self.dissoc_head is not None:
+                self.dissoc_head.load_state_dict(ckpt["dissoc_head_state"])
+            if "drift_head_state" in ckpt and self.drift_head is not None:
+                self.drift_head.load_state_dict(ckpt["drift_head_state"])
+            if "aux_reg_head_state" in ckpt and self.aux_reg_head is not None:
+                self.aux_reg_head.load_state_dict(ckpt["aux_reg_head_state"])
+            print(f"📥 Loaded multitask heads (weights={self.multitask_weights})")
 
         print(f"📥 Loaded model from epoch {ckpt.get('epoch', '?')}")
 
