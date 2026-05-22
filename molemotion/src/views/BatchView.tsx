@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDown, Plus, X as XIcon, Download, SlidersHorizontal, Loader2 } from 'lucide-react';
+import {
+  ChevronDown, Plus, X as XIcon, Download, SlidersHorizontal, Loader2,
+  Sparkles, Search,
+} from 'lucide-react';
 
 import { api } from '../lib/api.ts';
-import { RecommendationPill } from '../components/ui.tsx';
+import { RecommendationPill, DarkInput } from '../components/ui.tsx';
+import { GlowCard, CardHeader } from '../components/GlowCard.tsx';
 import type {
   ApiError,
   PredictResponse,
@@ -64,7 +68,6 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Refetch as user types in the picker (server-side autocomplete, supports tunnel mode).
   useEffect(() => {
     if (!pickerOpen) return;
     const controller = new AbortController();
@@ -116,7 +119,6 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
       return;
     }
 
-    // Fan-out /evaluate with bounded concurrency.
     const queue = batchRes.data.results.map(r => r.pdb_id);
     const workers: Promise<void>[] = [];
     for (let w = 0; w < PARALLEL_AGENT_CALLS; w++) {
@@ -183,7 +185,6 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
         const db = b.prediction?.hidden_pK != null ? Math.abs(b.prediction.pK - b.prediction.hidden_pK) : 99;
         return da - db;
       }
-      // recommendation: trust > review > discard > undefined
       const rank: Record<string, number> = { trust: 0, review: 1, discard: 2 };
       const ra = a.verdict ? rank[a.verdict.recommendation] : 3;
       const rb = b.verdict ? rank[b.verdict.recommendation] : 3;
@@ -191,62 +192,105 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
     });
   }, [rows, selected, filterTrust, filterReview, filterDiscard, sortBy]);
 
-  return (
-    <div className="flex flex-col gap-8 animate-in fade-in duration-300">
-      <div className="flex flex-col border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
-        <div className="bg-slate-50 px-6 py-5 border-b border-slate-200">
-          <h2 className="text-lg font-semibold tracking-tight text-slate-900 mb-1">Batch triage</h2>
-          <p className="text-slate-500 text-sm mb-6">Rank a set of test-split PDBs by their defensible predicted pK.</p>
+  const stats = useMemo(() => {
+    const completed = displayedRows.filter(r => r.prediction);
+    const trust    = completed.filter(r => r.verdict?.recommendation === 'trust').length;
+    const review   = completed.filter(r => r.verdict?.recommendation === 'review').length;
+    const discard  = completed.filter(r => r.verdict?.recommendation === 'discard').length;
+    return { trust, review, discard, total: completed.length };
+  }, [displayedRows]);
 
-          <div className="flex items-start gap-4 mb-4">
-            <div className="flex-1 relative">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                Selected PDB IDs ({selected.length})
-              </div>
-              <div className="flex flex-wrap gap-2 text-sm font-mono">
-                {selected.map(id => (
-                  <span key={id} className="bg-white border border-slate-200 px-2 flex items-center gap-1 rounded text-slate-700">
-                    [{id}]
-                    <button
-                      onClick={() => setSelected(selected.filter(x => x !== id))}
-                      className="text-slate-400 hover:text-rose-600 ml-1"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-                <button
-                  onClick={() => setPickerOpen(o => !o)}
-                  className="text-indigo-600 hover:text-indigo-700 flex items-center gap-1 font-sans font-medium px-2 ml-2"
+  return (
+    <div className="flex flex-col gap-6">
+      {/* ---------- Header card ---------- */}
+      <GlowCard className="fx-fade-up">
+        <div className="px-6 py-5 border-b" style={{ borderColor: 'var(--color-line)' }}>
+          <span className="text-[11px] font-mono tracking-[0.22em] uppercase"
+                style={{ color: 'var(--color-ink-dim)' }}>
+            Batch triage
+          </span>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.02em] mt-1 mb-2"
+              style={{ color: 'var(--color-ink)' }}>
+            Rank a set of test-split PDBs by their defensible predicted pK.
+          </h2>
+          <p className="text-sm" style={{ color: 'var(--color-ink-mute)' }}>
+            Each row gets a regex-grounded rationale and (optionally) an independent agent verdict.
+          </p>
+        </div>
+
+        <div className="px-6 py-5 flex flex-col gap-5">
+          <div>
+            <div className="text-[10px] font-mono tracking-[0.2em] uppercase mb-3"
+                 style={{ color: 'var(--color-ink-dim)' }}>
+              Selected PDB IDs · {selected.length}
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm font-mono relative">
+              {selected.map(id => (
+                <span
+                  key={id}
+                  className="px-2 py-0.5 rounded-full flex items-center gap-1 transition-colors"
+                  style={{
+                    background: '#f3f5fb',
+                    border: '1px solid var(--color-line)',
+                    color: 'var(--color-ink-2)',
+                  }}
                 >
-                  <Plus size={14} /> Add
-                </button>
-                <button
-                  onClick={() => setSelected([])}
-                  className="text-slate-500 hover:text-slate-700 flex items-center gap-1 font-sans font-medium px-2"
-                >
-                  <XIcon size={14} /> Clear
-                </button>
-              </div>
+                  {id}
+                  <button
+                    onClick={() => setSelected(selected.filter(x => x !== id))}
+                    className="ml-1 transition-colors hover:text-[#f4625f]"
+                    style={{ color: 'var(--color-ink-dim)' }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                onClick={() => setPickerOpen(o => !o)}
+                className="flex items-center gap-1 px-3 py-0.5 rounded-full text-[12px] transition"
+                style={{
+                  background: 'rgba(84, 103, 242, 0.12)',
+                  color: '#5467F2',
+                  border: '1px solid rgba(84, 103, 242, 0.35)',
+                }}
+              >
+                <Plus size={12} /> Add
+              </button>
+              <button
+                onClick={() => setSelected([])}
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] transition-colors hover:text-ink"
+                style={{ color: 'var(--color-ink-dim)' }}
+              >
+                <XIcon size={12} /> Clear
+              </button>
 
               {pickerOpen && (
-                <div className="absolute top-full left-0 mt-1 z-30 bg-white border border-slate-200 rounded-md shadow-lg w-72 max-h-72 overflow-hidden flex flex-col">
-                  <input
-                    autoFocus
-                    value={pickerFilter}
-                    onChange={e => setPickerFilter(e.target.value)}
-                    placeholder={`search ${whitelist.length} PDBs`}
-                    className="px-3 py-2 border-b border-slate-200 text-sm focus:outline-none font-mono"
-                  />
+                <div className="absolute top-full left-0 mt-2 z-30 w-80 max-h-72 overflow-hidden flex flex-col glass-strong rounded-xl bevel-border fx-fade-soft">
+                  <div className="relative">
+                    <Search size={12}
+                            className="absolute left-3 top-1/2 -translate-y-1/2"
+                            style={{ color: 'var(--color-ink-dim)' }} />
+                    <DarkInput
+                      autoFocus
+                      value={pickerFilter}
+                      onChange={e => setPickerFilter(e.target.value)}
+                      placeholder={`search ${whitelist.length} PDBs`}
+                      className="!rounded-none !border-0 !border-b !pl-9"
+                    />
+                  </div>
                   <div className="overflow-y-auto">
                     {pickerOptions.length === 0 && (
-                      <div className="px-3 py-2 text-slate-400 text-xs italic">no matches</div>
+                      <div className="px-3 py-2 text-xs italic font-mono"
+                           style={{ color: 'var(--color-ink-dim)' }}>
+                        no matches
+                      </div>
                     )}
                     {pickerOptions.map(id => (
                       <button
                         key={id}
                         onClick={() => { setSelected([...selected, id]); setPickerFilter(''); }}
-                        className="block w-full text-left px-3 py-1.5 text-sm font-mono hover:bg-indigo-50 hover:text-indigo-700"
+                        className="block w-full text-left px-3 py-1.5 text-sm font-mono transition-colors hover:bg-[rgba(84,103,242,0.1)]"
+                        style={{ color: 'var(--color-ink-2)' }}
                       >
                         {id}
                       </button>
@@ -255,99 +299,143 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
                 </div>
               )}
             </div>
-
-            <div className="flex border border-slate-200 rounded divide-x divide-slate-200 bg-white font-medium text-sm text-slate-600 shadow-sm shrink-0">
-              <span className="px-3 py-1.5">Variant: <span className="font-mono">{variant}</span></span>
-            </div>
           </div>
 
-          <div className="flex items-center justify-between">
-            <div className="flex gap-4 text-sm font-medium">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 items-center">
               <button
                 onClick={() => {
                   const shuffled = [...whitelist].sort(() => Math.random() - 0.5);
                   setSelected(shuffled.slice(0, 20));
                 }}
-                className="text-indigo-600 border border-indigo-200 bg-indigo-50 px-3 py-1.5 rounded hover:bg-indigo-100 transition-colors flex items-center gap-2"
+                className="btn-ghost rounded-lg px-3 py-1.5 text-[13px] flex items-center gap-2"
               >
-                <Plus size={14} /> Pick 20 random
+                <Plus size={13} /> Pick 20 random
               </button>
-              <label className="flex items-center gap-2 text-slate-600 cursor-pointer pl-4">
+              <label className="flex items-center gap-2 text-[13px] cursor-pointer pl-2"
+                     style={{ color: 'var(--color-ink-2)' }}>
                 <input
                   type="checkbox"
                   checked={includeAgent}
                   onChange={e => setIncludeAgent(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-600"
+                  className="rounded"
                 />
-                Include agent evaluation <span className="text-slate-400 font-mono text-xs">(~${AGENT_USD_PER_CALL.toFixed(2)} ea)</span>
+                Include agent evaluation
+                <span className="text-[11px] font-mono"
+                      style={{ color: 'var(--color-ink-dim)' }}>
+                  ~${AGENT_USD_PER_CALL.toFixed(2)} ea
+                </span>
               </label>
             </div>
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-slate-500 font-mono">
-                Est cost: ${estCostUsd.toFixed(2)}, ~{estLatencyMin} min
+              <span className="font-mono text-[12px]"
+                    style={{ color: 'var(--color-ink-dim)' }}>
+                Est cost: ${estCostUsd.toFixed(2)} · ~{estLatencyMin} min
               </span>
               <button
                 onClick={handleRun}
                 disabled={selected.length === 0 || running}
-                className="bg-slate-900 text-white px-4 py-2 rounded-md hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-sm flex items-center gap-2"
+                className="btn-primary rounded-lg px-4 py-2 text-sm flex items-center gap-2"
               >
-                {running && <Loader2 size={14} className="animate-spin" />}
+                {running ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
                 Run batch
               </button>
             </div>
           </div>
 
           {error && (
-            <div className="mt-3 border border-rose-200 bg-rose-50 text-rose-800 text-sm px-3 py-2 rounded">
+            <div className="rounded-lg px-3 py-2 text-sm"
+                 style={{
+                   background: 'rgba(244, 98, 95, 0.12)',
+                   color: '#a8332f',
+                   border: '1px solid rgba(244, 98, 95, 0.4)',
+                 }}>
               {error.message} (status {error.status})
             </div>
           )}
         </div>
+      </GlowCard>
 
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-4 text-sm font-medium text-slate-600">
-              <button
-                onClick={() => {
-                  const next = sortBy === 'recommendation' ? 'pred' : sortBy === 'pred' ? 'delta' : 'recommendation';
-                  setSortBy(next);
-                }}
-                className="flex items-center gap-1.5 hover:text-slate-900 px-2 py-1 rounded border border-transparent hover:border-slate-200 hover:bg-slate-50"
-              >
-                <SlidersHorizontal size={14} />
-                Sort: {sortBy} <ChevronDown size={14} />
-              </button>
-              <div className="flex gap-4 border-l border-slate-200 pl-4">
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={filterTrust} onChange={e => setFilterTrust(e.target.checked)} className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-600" /> trust
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={filterReview} onChange={e => setFilterReview(e.target.checked)} className="rounded border-slate-300 text-amber-600 focus:ring-amber-600" /> review
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={filterDiscard} onChange={e => setFilterDiscard(e.target.checked)} className="rounded border-slate-300 text-rose-600 focus:ring-rose-600" /> discard
-                </label>
-              </div>
-            </div>
-            <div className="text-sm text-slate-500 font-mono">{displayedRows.length}/{selected.length} shown</div>
+      {/* ---------- Verdict count strip ---------- */}
+      {stats.total > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 fx-fade-up">
+          <StatChip label="Predicted" count={stats.total} tone="cyan" />
+          <StatChip label="Trust"   count={stats.trust}   tone="lime" />
+          <StatChip label="Review"  count={stats.review}  tone="amber" />
+          <StatChip label="Discard" count={stats.discard} tone="rose" />
+        </div>
+      )}
+
+      {/* ---------- Results card ---------- */}
+      <GlowCard className="fx-fade-up" style={{ animationDelay: '80ms' } as React.CSSProperties}>
+        <CardHeader
+          right={
+            <span className="text-[11px] font-mono"
+                  style={{ color: 'var(--color-ink-dim)' }}>
+              {displayedRows.length}/{selected.length} shown
+            </span>
+          }
+        >
+          Results
+        </CardHeader>
+
+        <div className="px-5 py-4 flex items-center gap-4 text-sm border-b"
+             style={{ borderColor: 'var(--color-line)' }}>
+          <button
+            onClick={() => {
+              const next = sortBy === 'recommendation' ? 'pred' : sortBy === 'pred' ? 'delta' : 'recommendation';
+              setSortBy(next);
+            }}
+            className="btn-ghost rounded-lg px-2.5 py-1 text-[12px] flex items-center gap-1.5"
+          >
+            <SlidersHorizontal size={12} />
+            Sort: {sortBy} <ChevronDown size={12} />
+          </button>
+          <div className="flex gap-3 pl-3 border-l" style={{ borderColor: 'var(--color-line)' }}>
+            {[
+              { k: 'trust',   v: filterTrust,   set: setFilterTrust,   color: '#4ec07a' },
+              { k: 'review',  v: filterReview,  set: setFilterReview,  color: '#FF9900' },
+              { k: 'discard', v: filterDiscard, set: setFilterDiscard, color: '#f4625f' },
+            ].map(it => (
+              <label key={it.k}
+                     className="flex items-center gap-1.5 cursor-pointer text-[12px] font-mono uppercase tracking-wider"
+                     style={{ color: it.v ? it.color : 'var(--color-ink-dim)' }}>
+                <input
+                  type="checkbox"
+                  checked={it.v}
+                  onChange={e => it.set(e.target.checked)}
+                  className="rounded"
+                  style={{ accentColor: it.color }}
+                />
+                {it.k}
+              </label>
+            ))}
           </div>
+        </div>
 
+        <div className="overflow-x-auto">
           <table className="w-full text-sm text-left border-collapse">
             <thead>
-              <tr className="border-y border-slate-200 bg-slate-50/50 text-slate-500">
-                <th className="font-semibold py-3 px-4 font-sans border-r border-slate-200">PDB</th>
-                <th className="font-semibold py-3 px-4 font-sans text-right">pred</th>
-                <th className="font-semibold py-3 px-4 font-sans text-right border-r border-slate-200">|Δ|</th>
-                <th className="font-semibold py-3 px-4 font-sans border-r border-slate-200">regex</th>
-                <th className="font-semibold py-3 px-4 font-sans border-r border-slate-200">agent</th>
-                <th className="font-semibold py-3 px-4 font-sans">supporting evidence</th>
+              <tr className="text-[10px] font-mono tracking-[0.18em] uppercase"
+                  style={{ color: 'var(--color-ink-dim)' }}>
+                <th className="font-medium py-3 px-4 border-b" style={{ borderColor: 'var(--color-line)' }}>PDB</th>
+                <th className="font-medium py-3 px-4 text-right border-b" style={{ borderColor: 'var(--color-line)' }}>pred</th>
+                <th className="font-medium py-3 px-4 text-right border-b" style={{ borderColor: 'var(--color-line)' }}>|Δ|</th>
+                <th className="font-medium py-3 px-4 border-b" style={{ borderColor: 'var(--color-line)' }}>regex</th>
+                <th className="font-medium py-3 px-4 border-b" style={{ borderColor: 'var(--color-line)' }}>agent</th>
+                <th className="font-medium py-3 px-4 border-b" style={{ borderColor: 'var(--color-line)' }}>supporting evidence</th>
               </tr>
             </thead>
             <tbody className="font-mono text-[13px]">
               {displayedRows.length === 0 && (
-                <tr><td colSpan={6} className="py-8 px-4 text-center text-slate-400 italic">No rows yet — pick PDBs and Run batch.</td></tr>
+                <tr>
+                  <td colSpan={6} className="py-10 px-4 text-center italic"
+                      style={{ color: 'var(--color-ink-dim)' }}>
+                    No rows yet — pick PDBs and Run batch.
+                  </td>
+                </tr>
               )}
-              {displayedRows.map(row => {
+              {displayedRows.map((row, i) => {
                 const p = row.prediction;
                 const v = row.verdict;
                 const delta = p && p.hidden_pK != null ? Math.abs(p.pK - p.hidden_pK) : null;
@@ -359,18 +447,34 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
                   <tr
                     key={row.pdb_id}
                     onClick={() => onGoToSingle(row.pdb_id)}
-                    className="border-b border-slate-100 hover:bg-indigo-50/50 cursor-pointer group"
+                    className="cursor-pointer fx-rise hover:bg-[rgba(84,103,242,0.06)] transition-colors group"
+                    style={{
+                      animationDelay: `${i * 30}ms`,
+                      borderBottom: '1px solid var(--color-line)',
+                    }}
                   >
-                    <td className="py-2.5 px-4 font-semibold text-slate-700 border-r border-slate-200 group-hover:text-indigo-700">{row.pdb_id}</td>
-                    <td className="py-2.5 px-4 text-right text-slate-600">{p ? p.pK.toFixed(2) : '—'}</td>
-                    <td className="py-2.5 px-4 text-right text-slate-500 border-r border-slate-200">{delta != null ? delta.toFixed(2) : '—'}</td>
-                    <td className="py-2.5 px-4 text-slate-500 border-r border-slate-200 tracking-tight">{regex || '—'}</td>
-                    <td className="py-2.5 px-4 border-r border-slate-200">
-                      {v ? <RecommendationPill type={v.recommendation} />
-                        : row.evaluating ? <span className="text-slate-400 italic text-xs">…</span>
-                        : <span className="text-slate-300">—</span>}
+                    <td className="py-3 px-4 font-semibold tracking-tight transition-colors"
+                        style={{ color: 'var(--color-ink)' }}>
+                      <span className="group-hover:text-gradient-cool">{row.pdb_id}</span>
                     </td>
-                    <td className="py-2.5 px-4 text-slate-600 font-sans text-sm truncate max-w-[280px]">
+                    <td className="py-3 px-4 text-right" style={{ color: 'var(--color-ink-2)' }}>
+                      {p ? p.pK.toFixed(2) : '—'}
+                    </td>
+                    <td className="py-3 px-4 text-right" style={{ color: 'var(--color-ink-mute)' }}>
+                      {delta != null ? delta.toFixed(2) : '—'}
+                    </td>
+                    <td className="py-3 px-4 tracking-tight" style={{ color: 'var(--color-ink-mute)' }}>
+                      {regex || '—'}
+                    </td>
+                    <td className="py-3 px-4">
+                      {v
+                        ? <RecommendationPill type={v.recommendation} />
+                        : row.evaluating
+                          ? <span className="text-xs italic" style={{ color: 'var(--color-ink-dim)' }}>evaluating…</span>
+                          : <span style={{ color: 'var(--color-ink-faint)' }}>—</span>}
+                    </td>
+                    <td className="py-3 px-4 text-sm truncate max-w-[280px]"
+                        style={{ color: 'var(--color-ink-2)' }}>
                       {evidence}
                     </td>
                   </tr>
@@ -378,29 +482,53 @@ export function BatchView({ variant, onGoToSingle }: BatchViewProps) {
               })}
             </tbody>
           </table>
-
-          <div className="mt-4 flex flex-col gap-6">
-            <div className="flex gap-4">
-              <button
-                onClick={exportCsv}
-                disabled={displayedRows.length === 0}
-                className="border border-slate-200 bg-white text-slate-600 font-medium text-sm px-4 py-2 rounded-md hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2 shadow-sm"
-              >
-                <Download size={14} /> Export selected as CSV
-              </button>
-              <button
-                onClick={() => {
-                  const trusted = displayedRows.filter(r => r.verdict?.recommendation === 'trust').map(r => r.pdb_id);
-                  alert(`(mock action) would queue ${trusted.length} systems for assay: ${trusted.join(', ')}`);
-                }}
-                className="font-medium text-sm px-4 py-2 rounded-md hover:bg-indigo-50 text-indigo-700 bg-indigo-50/50 border border-indigo-100 flex items-center gap-2"
-              >
-                Send only "trust" to assay queue (mock)
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
+
+        <div className="px-5 py-4 flex flex-wrap gap-3 border-t"
+             style={{ borderColor: 'var(--color-line)' }}>
+          <button
+            onClick={exportCsv}
+            disabled={displayedRows.length === 0}
+            className="btn-ghost rounded-lg px-4 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
+          >
+            <Download size={14} /> Export selected as CSV
+          </button>
+          <button
+            onClick={() => {
+              const trusted = displayedRows.filter(r => r.verdict?.recommendation === 'trust').map(r => r.pdb_id);
+              alert(`(mock action) would queue ${trusted.length} systems for assay: ${trusted.join(', ')}`);
+            }}
+            className="rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition-colors"
+            style={{
+              background: 'rgba(78, 192, 122, 0.12)',
+              color: '#4ec07a',
+              border: '1px solid rgba(78, 192, 122, 0.35)',
+            }}
+          >
+            Send only “trust” to assay queue (mock)
+          </button>
+        </div>
+      </GlowCard>
+    </div>
+  );
+}
+
+function StatChip({ label, count, tone }: { label: string; count: number; tone: 'cyan' | 'lime' | 'amber' | 'rose' }) {
+  const color =
+    tone === 'cyan'  ? '#5467F2' :
+    tone === 'lime'  ? '#4ec07a' :
+    tone === 'amber' ? '#FF9900'  :
+                       '#f4625f';
+  return (
+    <div className="glass rounded-xl bevel-border px-4 py-3 flex items-center justify-between">
+      <span className="text-[10px] font-mono tracking-[0.2em] uppercase"
+            style={{ color: 'var(--color-ink-dim)' }}>
+        {label}
+      </span>
+      <span className="font-display text-xl font-semibold tracking-tight"
+            style={{ color }}>
+        {count}
+      </span>
     </div>
   );
 }

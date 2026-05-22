@@ -1,4 +1,4 @@
-# Multi-stage build for the MoleMotion frontend.
+# Multi-stage build for the Trajecta frontend.
 # Build context = molemotion/ (set in docker-compose.yml).
 
 # ---------- stage 1: build the Vite bundle ----------

@@ -29,7 +29,7 @@ export function StructureViewer({ pdbString, currentFrame, highlightResidue, cla
     }
 
     const viewer = $3Dmol.createViewer(hostRef.current, {
-      backgroundColor: '#1a1b26',
+      backgroundColor: 'rgba(0,0,0,0)',
       antialias: true,
     });
 

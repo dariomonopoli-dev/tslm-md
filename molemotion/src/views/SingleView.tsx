@@ -1,9 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Play, Pause, Box, Activity, Loader2 } from 'lucide-react';
+import {
+  ChevronDown, Play, Pause, Box, Activity, Loader2, Sparkles, Search,
+} from 'lucide-react';
 import { LineChart, Line, ReferenceLine, ResponsiveContainer, YAxis } from 'recharts';
 
-import { RecommendationPill, VerifierMark, Citation, ScoreBar, AgentTrace } from '../components/ui.tsx';
+import {
+  RecommendationPill, VerifierMark, Citation, ScoreBar, AgentTrace,
+  DarkInput, Segmented,
+} from '../components/ui.tsx';
 import { StructureViewer } from '../components/StructureViewer.tsx';
+import { GlowCard, CardHeader } from '../components/GlowCard.tsx';
+import { AnimatedNumber } from '../components/AnimatedNumber.tsx';
 import { api } from '../lib/api.ts';
 import { MOCK_CHART_DATA } from '../data.ts';
 import type {
@@ -26,7 +33,6 @@ interface SingleViewProps {
 }
 
 
-// Regex-verifier status → UI verifier mark.
 function statusToMark(s: VerifierClaim['status']): 'pass' | 'fail' | 'warn' {
   if (s === 'verified') return 'pass';
   if (s === 'contradicted') return 'fail';
@@ -51,23 +57,22 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
   const [agentError, setAgentError] = useState<ApiError | null>(null);
   const [showCostModal, setShowCostModal] = useState(false);
 
-  // 3D viewer state — driven by a shared currentFrame so the channel-chart cursor
-  // and the structure animation stay in sync.
   const [pdbString, setPdbString] = useState<string | null>(null);
   const [pdbLoading, setPdbLoading] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(true);
   const playTimerRef = useRef<number | null>(null);
 
-  // Per-frame channels — real (rmsd/energy/dist/bsasa) for the chart.
   const [channels, setChannels] = useState<ChannelFrame[] | null>(null);
 
-  // Mount: fetch service health + initial PDB list (empty q = all in local mode,
-  // empty list in tunnel mode — user typing kicks off autocomplete).
+  // Mount: pdb list + health
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [idsRes, healthRes] = await Promise.all([api.pdbIds({ limit: 50 }), api.health()]);
+      const [idsRes, healthRes] = await Promise.all([
+        api.pdbIds({ limit: 50 }),
+        api.health(),
+      ]);
       if (cancelled) return;
       if (idsRes.ok) setPdbIds(idsRes.data);
       if (healthRes.ok) setHealth(healthRes.data);
@@ -75,8 +80,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
     return () => { cancelled = true; };
   }, []);
 
-  // Server-side autocomplete: refetch when the picker filter changes.
-  // Debounced 250ms + AbortController so stale responses don't overwrite fresh ones.
+  // Picker autocomplete
   useEffect(() => {
     if (!pdbSearchOpen) return;
     const controller = new AbortController();
@@ -90,7 +94,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
     };
   }, [pdbFilter, pdbSearchOpen]);
 
-  // Changing PDB or variant clears stale results.
+  // Reset stale results on PDB/variant change
   useEffect(() => {
     setPrediction(null);
     setAgent(null);
@@ -98,12 +102,12 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
     setAgentError(null);
   }, [pdb, variant]);
 
-  // Fetch the multi-MODEL PDB whenever the PDB changes.
+  // Trajectory string
   useEffect(() => {
     let cancelled = false;
     setPdbString(null);
     setCurrentFrame(0);
-    setPlaying(false);
+    setPlaying(true);
     setPdbLoading(true);
     (async () => {
       const res = await api.pdbString(pdb);
@@ -114,7 +118,7 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
     return () => { cancelled = true; };
   }, [pdb]);
 
-  // Fetch real per-frame channels for the chart.
+  // Channels
   useEffect(() => {
     let cancelled = false;
     setChannels(null);
@@ -126,12 +130,9 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
     return () => { cancelled = true; };
   }, [pdb]);
 
-  // Frame slider operates in raw MD-frame space (0..99) so the channel chart
-  // cursor and the image-mode counter line up. The live-3D viewer translates
-  // to its own stride-5 frame space internally.
   const nFrames = channels?.length ?? 100;
 
-  // Play loop: advance the frame at ~10 fps.
+  // Play loop
   useEffect(() => {
     if (!playing) {
       if (playTimerRef.current != null) {
@@ -151,7 +152,6 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
     };
   }, [playing, nFrames]);
 
-  // Server now does the filtering — just take what it returned.
   const filteredPdbs = pdbIds.slice(0, 50);
 
   async function handlePredict() {
@@ -185,168 +185,118 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
   }
 
   return (
-    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
-
+    <div className="flex flex-col gap-6">
       {/* ---------- Top Toolbar ---------- */}
-      <div className="flex items-center gap-6 border border-slate-200 bg-white rounded-md px-4 py-3 shadow-sm text-sm relative">
-        <label className="flex items-center gap-3 font-semibold text-slate-700">
-          PDB ID
-          <div
-            className="border border-slate-200 bg-slate-50 rounded px-2 py-1 flex items-center font-mono font-medium text-slate-600 cursor-pointer hover:border-slate-300"
-            onClick={() => setPdbSearchOpen(o => !o)}
-          >
-            {pdb} <ChevronDown size={14} className="ml-2 text-slate-400" />
-          </div>
-        </label>
-
-        {pdbSearchOpen && (
-          <div className="absolute top-full left-16 mt-1 z-30 bg-white border border-slate-200 rounded-md shadow-lg w-72 max-h-80 overflow-hidden flex flex-col">
-            <input
-              autoFocus
-              value={pdbFilter}
-              onChange={e => setPdbFilter(e.target.value)}
-              placeholder={`search ${pdbIds.length} PDBs`}
-              className="px-3 py-2 border-b border-slate-200 text-sm focus:outline-none font-mono"
-            />
-            <div className="overflow-y-auto">
-              {filteredPdbs.length === 0 && (
-                <div className="px-3 py-2 text-slate-400 text-xs italic">
-                  no matches{pdbIds.length === 0 ? ' — backend not loaded' : ''}
-                </div>
-              )}
-              {filteredPdbs.map(id => (
-                <button
-                  key={id}
-                  onClick={() => { onPdbChange(id); setPdbSearchOpen(false); setPdbFilter(''); }}
-                  className="block w-full text-left px-3 py-1.5 text-sm font-mono hover:bg-indigo-50 hover:text-indigo-700"
-                >
-                  {id}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="w-px h-6 bg-slate-200"></div>
-
-        <label className="flex items-center gap-3 font-semibold text-slate-700">
-          Variant
-          <div className="flex border border-slate-200 rounded divide-x divide-slate-200 font-mono text-xs overflow-hidden">
-            {(['v1a', 'v1b'] as const).map(v => (
-              <button
-                key={v}
-                onClick={() => onVariantChange(v)}
-                className={
-                  v === variant
-                    ? 'px-3 py-1.5 bg-indigo-50 text-indigo-700 font-semibold shadow-[0_2px_2px_0_inset_#c7d2fe]'
-                    : 'px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500'
-                }
-              >
-                {v}
-              </button>
-            ))}
-          </div>
-        </label>
-
-        <div className="ml-auto flex items-center gap-3">
-          {health && health.status !== 'ready' && (
-            <span className="text-xs text-amber-700 font-mono bg-amber-50 border border-amber-200 px-2 py-1 rounded">
-              backend: {health.status}
+      <GlowCard className="px-5 py-3.5 fx-fade-up">
+        <div className="flex flex-wrap items-center gap-5 relative">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase"
+                  style={{ color: 'var(--color-ink-dim)' }}>
+              PDB
             </span>
-          )}
-          <button
-            disabled={predictLoading}
-            onClick={handlePredict}
-            className="bg-slate-900 text-white px-5 py-1.5 rounded-md hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed font-semibold shadow-sm text-sm flex items-center gap-2"
-          >
-            {predictLoading && <Loader2 size={14} className="animate-spin" />}
-            Predict
-          </button>
-        </div>
-      </div>
+            <button
+              onClick={() => setPdbSearchOpen(o => !o)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg font-mono text-sm transition-colors"
+              style={{
+                background: '#f3f5fb',
+                border: '1px solid var(--color-line)',
+                color: 'var(--color-ink)',
+              }}
+            >
+              <Search size={12} style={{ color: 'var(--color-ink-dim)' }} />
+              {pdb}
+              <ChevronDown size={12} style={{ color: 'var(--color-ink-dim)' }} />
+            </button>
 
-      {predictError && (
-        <div className="border border-rose-200 bg-rose-50 text-rose-800 text-sm px-4 py-2 rounded">
-          Predict failed: {predictError.message} (status {predictError.status})
-        </div>
-      )}
-
-      {/* ---------- Prediction + 3D + channels ---------- */}
-      <div className="grid grid-cols-[1fr_minmax(0,1.2fr)] gap-6">
-        {/* Left: prediction + rationale */}
-        <div className="flex flex-col gap-6">
-          <div className="border border-slate-200 bg-white rounded-md shadow-sm overflow-hidden">
-            <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 flex items-center gap-2">
-              <Activity size={14} className="text-slate-500" />
-              <span className="font-semibold text-slate-700 text-sm">Prediction</span>
-            </div>
-            <div className="p-4 grid grid-cols-[140px_1fr] gap-y-2 text-sm font-sans">
-              <span className="text-slate-500">Predicted pK</span>
-              <span className="font-mono font-semibold text-slate-900">
-                {prediction ? prediction.pK.toFixed(2) : '—'}
-                {prediction?.affinity != null && (
-                  <span className="text-slate-400 font-normal text-xs ml-2">
-                    (ΔG = {prediction.affinity.toFixed(2)} kcal/mol)
-                  </span>
-                )}
-              </span>
-              <span className="text-slate-500">Actual pK</span>
-              <span className="font-mono text-slate-600">
-                {prediction?.hidden_pK != null ? prediction.hidden_pK.toFixed(2) : '—'}
-              </span>
-              <span className="text-slate-500">|Δ|</span>
-              <span className={`font-mono ${prediction && prediction.hidden_pK != null && Math.abs(prediction.pK - prediction.hidden_pK) < 0.3 ? 'text-emerald-600' : 'text-slate-600'}`}>
-                {prediction && prediction.hidden_pK != null
-                  ? Math.abs(prediction.pK - prediction.hidden_pK).toFixed(2)
-                  : '—'}
-              </span>
-              {prediction?.verdict && (
-                <>
-                  <span className="text-slate-500">Verdict</span>
-                  <span className={`font-mono text-xs px-2 py-0.5 rounded inline-block w-fit ${
-                    prediction.verdict === 'CONFIRMED'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : prediction.verdict === 'INCONCLUSIVE'
-                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                        : 'bg-rose-50 text-rose-700 border border-rose-200'
-                  }`}>
-                    {prediction.verdict}
-                    {prediction.confidence && (
-                      <span className="ml-2 opacity-70">conf={prediction.confidence}</span>
-                    )}
-                  </span>
-                </>
-              )}
-              {prediction?.disagreement_z != null && (
-                <>
-                  <span className="text-slate-500">Disagreement z</span>
-                  <span className="font-mono text-slate-600">
-                    {prediction.disagreement_z.toFixed(2)}
-                    {prediction.independent_energy != null && (
-                      <span className="text-slate-400 font-normal text-xs ml-2">
-                        (indep E = {prediction.independent_energy.toFixed(2)} kcal/mol)
-                      </span>
-                    )}
-                  </span>
-                </>
-              )}
-              <span className="text-slate-500">Backbone</span>
-              <span className="font-mono text-slate-600 text-xs">
-                {prediction?.model_version ?? '—'}
-              </span>
-            </div>
-            {prediction?.verdict_reason && (
-              <div className="border-t border-slate-200 bg-amber-50/40 px-4 py-2 text-xs text-amber-800 font-sans italic">
-                {prediction.verdict_reason}
+            {pdbSearchOpen && (
+              <div className="absolute top-full left-12 mt-2 z-30 w-80 max-h-80 overflow-hidden flex flex-col glass-strong rounded-xl bevel-border fx-fade-soft">
+                <DarkInput
+                  autoFocus
+                  value={pdbFilter}
+                  onChange={e => setPdbFilter(e.target.value)}
+                  placeholder={`search ${pdbIds.length} PDBs`}
+                  className="!rounded-none !border-0 !border-b"
+                />
+                <div className="overflow-y-auto">
+                  {filteredPdbs.length === 0 && (
+                    <div className="px-3 py-2 text-xs italic font-mono"
+                         style={{ color: 'var(--color-ink-dim)' }}>
+                      no matches{pdbIds.length === 0 ? ' — backend not loaded' : ''}
+                    </div>
+                  )}
+                  {filteredPdbs.map(id => (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        onPdbChange(id);
+                        setPdbSearchOpen(false);
+                        setPdbFilter('');
+                      }}
+                      className="block w-full text-left px-3 py-1.5 text-sm font-mono transition-colors hover:bg-[rgba(84,103,242,0.1)]"
+                      style={{ color: 'var(--color-ink-2)' }}
+                    >
+                      {id}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>
 
+          <div className="h-6 w-px" style={{ background: 'var(--color-line)' }} />
+
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-mono tracking-[0.2em] uppercase"
+                  style={{ color: 'var(--color-ink-dim)' }}>
+              Variant
+            </span>
+            <Segmented value={variant} options={['v1a', 'v1b'] as const} onChange={onVariantChange} />
+          </div>
+
+          <div className="ml-auto flex items-center gap-3">
+            {health && health.status !== 'ready' && (
+              <span className="text-[11px] font-mono px-2 py-1 rounded"
+                    style={{
+                      color: '#FF9900',
+                      background: 'rgba(255, 153, 0, 0.12)',
+                      border: '1px solid rgba(255, 153, 0, 0.4)',
+                    }}>
+                backend · {health.status}
+              </span>
+            )}
+            <button
+              disabled={predictLoading}
+              onClick={handlePredict}
+              className="btn-primary rounded-lg px-5 py-2 text-sm flex items-center gap-2"
+            >
+              {predictLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+              {predictLoading ? 'Predicting…' : 'Predict'}
+            </button>
+          </div>
+        </div>
+      </GlowCard>
+
+      {predictError && (
+        <div className="rounded-lg px-4 py-2 text-sm fx-fade-in"
+             style={{
+               background: 'rgba(244, 98, 95, 0.12)',
+               border: '1px solid rgba(244, 98, 95, 0.4)',
+               color: '#a8332f',
+             }}>
+          Predict failed: {predictError.message} (status {predictError.status})
+        </div>
+      )}
+
+      {/* ---------- Prediction + 3D viewer ---------- */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(0,1.25fr)] gap-5 fx-fade-up" style={{ animationDelay: '80ms' }}>
+        {/* Left: prediction + rationale */}
+        <div className="flex flex-col gap-5">
+          <PredictionCard prediction={prediction} />
           <RationalePanel prediction={prediction} />
         </div>
 
         {/* Right: 3D viewer + channels */}
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-5">
           <StructurePanel
             pdb={pdb}
             pdbString={pdbString}
@@ -357,55 +307,29 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             onTogglePlay={() => setPlaying(p => !p)}
             onFrameChange={setCurrentFrame}
           />
-          <div className="border border-slate-200 bg-white rounded-md shadow-sm overflow-hidden flex-1 flex flex-col">
-            <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 flex items-center justify-between">
-              <span className="font-semibold text-slate-700 text-sm tracking-tight">Per-frame channels</span>
-              <span className="text-xs font-mono text-indigo-500">
-                MD {currentFrame}/{nFrames - 1}
-              </span>
-            </div>
-            <div className="p-4 grow font-mono text-xs text-slate-500 relative min-h-[260px]">
-              <div className="h-full w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={channels ?? MOCK_CHART_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                    <ReferenceLine x={currentFrame} stroke="#6366f1" strokeOpacity={0.6} strokeWidth={1} />
-                    {/* Three independent y-axes — bSASA at ~950 would otherwise crush RMSD at ~1 */}
-                    <Line type="monotone" yAxisId="rmsd" dataKey="rmsd" stroke="#f43f5e" dot={false} strokeWidth={1.5} />
-                    <Line type="monotone" yAxisId="energy" dataKey="energy" stroke="#3b82f6" dot={false} strokeWidth={1.5} />
-                    <Line type="monotone" yAxisId="bsasa" dataKey="bsasa" stroke="#8b5cf6" dot={false} strokeWidth={1.5} />
-                    <YAxis yAxisId="rmsd" hide domain={['dataMin - 0.2', 'dataMax + 0.2']} />
-                    <YAxis yAxisId="energy" hide domain={['dataMin - 5', 'dataMax + 5']} />
-                    <YAxis yAxisId="bsasa" hide domain={['dataMin - 20', 'dataMax + 20']} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex gap-4 mt-2 justify-center">
-                <span className="text-rose-500">── RMSD</span>
-                <span className="text-blue-500">── energy</span>
-                <span className="text-violet-500">── bSASA</span>
-                {!channels && <span className="text-slate-400 italic">(channels endpoint loading…)</span>}
-              </div>
-            </div>
-          </div>
+          <ChannelsPanel channels={channels} currentFrame={currentFrame} nFrames={nFrames} />
         </div>
       </div>
 
       {/* ---------- Agent verdict ---------- */}
-      <AgentVerdictPanel
-        prediction={prediction}
-        agent={agent}
-        agentLoading={agentLoading}
-        agentError={agentError}
-        onRequestRun={requestAgentRun}
-      />
+      <div className="fx-fade-up" style={{ animationDelay: '160ms' }}>
+        <AgentVerdictPanel
+          prediction={prediction}
+          agent={agent}
+          agentLoading={agentLoading}
+          agentError={agentError}
+          onRequestRun={requestAgentRun}
+        />
+      </div>
 
-      <div className="flex gap-4">
-        <button className="border border-slate-200 bg-white text-slate-600 font-medium text-sm px-4 py-2 rounded-md hover:bg-slate-50 flex items-center gap-2 shadow-sm">
+      {/* ---------- Action row ---------- */}
+      <div className="flex flex-wrap gap-3 fx-fade-up" style={{ animationDelay: '220ms' }}>
+        <button className="btn-ghost rounded-lg px-4 py-2 text-sm flex items-center gap-2">
           Show baselines <ChevronDown size={14} className="opacity-50" />
         </button>
         <button
           onClick={() => onVariantChange(variant === 'v1a' ? 'v1b' : 'v1a')}
-          className="border border-slate-200 bg-white text-slate-600 font-medium text-sm px-4 py-2 rounded-md hover:bg-slate-50 flex items-center gap-2 shadow-sm"
+          className="btn-ghost rounded-lg px-4 py-2 text-sm flex items-center gap-2"
         >
           Compare to {variant === 'v1a' ? 'v1b' : 'v1a'} ⇄
         </button>
@@ -421,13 +345,17 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
             a.click();
             URL.revokeObjectURL(url);
           }}
-          className="ml-auto font-medium text-sm px-4 py-2 rounded-md hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed text-indigo-700 border border-indigo-100 flex items-center bg-indigo-50/50"
+          className="ml-auto rounded-lg px-4 py-2 text-sm flex items-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            background: 'rgba(84, 103, 242, 0.12)',
+            color: '#5467F2',
+            border: '1px solid rgba(84, 103, 242, 0.4)',
+          }}
         >
           Export trace as JSON
         </button>
       </div>
 
-      {/* ---------- Cost confirmation modal ---------- */}
       {showCostModal && (
         <CostModal
           health={health}
@@ -441,23 +369,145 @@ export function SingleView({ pdb, variant, onPdbChange, onVariantChange }: Singl
 }
 
 
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 // Subcomponents
-// --------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
 
+function PredictionCard({ prediction }: { prediction: PredictResponse | null }) {
+  return (
+    <GlowCard tone={prediction ? 'cyan' : 'default'}>
+      <CardHeader icon={<Activity size={14} style={{ color: '#5467F2' }} />}>
+        Prediction
+      </CardHeader>
+      <div className="p-5 grid grid-cols-[140px_1fr] gap-y-3 text-sm">
+        <Label>Predicted pK</Label>
+        <span className="font-mono font-semibold text-2xl tracking-tight"
+              style={{ color: 'var(--color-ink)' }}>
+          {prediction ? (
+            <>
+              <AnimatedNumber value={prediction.pK} decimals={2} className="text-gradient-cool" />
+              {prediction.affinity != null && (
+                <span className="text-xs font-normal ml-2"
+                      style={{ color: 'var(--color-ink-dim)' }}>
+                  ΔG = {prediction.affinity.toFixed(2)} kcal/mol
+                </span>
+              )}
+            </>
+          ) : <span style={{ color: 'var(--color-ink-faint)' }}>—</span>}
+        </span>
+
+        <Label>Actual pK</Label>
+        <span className="font-mono" style={{ color: 'var(--color-ink-2)' }}>
+          {prediction?.hidden_pK != null ? prediction.hidden_pK.toFixed(2) : '—'}
+        </span>
+
+        <Label>|Δ|</Label>
+        <span
+          className="font-mono"
+          style={{
+            color: prediction && prediction.hidden_pK != null && Math.abs(prediction.pK - prediction.hidden_pK) < 0.3
+              ? '#4ec07a'
+              : 'var(--color-ink-2)',
+          }}
+        >
+          {prediction && prediction.hidden_pK != null
+            ? Math.abs(prediction.pK - prediction.hidden_pK).toFixed(2)
+            : '—'}
+        </span>
+
+        {prediction?.verdict && (
+          <>
+            <Label>Verdict</Label>
+            <span
+              className="font-mono text-[11px] px-2 py-0.5 rounded-full inline-block w-fit tracking-wider uppercase"
+              style={{
+                color:
+                  prediction.verdict === 'CONFIRMED' ? '#4ec07a'
+                  : prediction.verdict === 'INCONCLUSIVE' ? '#FF9900'
+                  : '#f4625f',
+                background:
+                  prediction.verdict === 'CONFIRMED' ? 'rgba(78, 192, 122, 0.12)'
+                  : prediction.verdict === 'INCONCLUSIVE' ? 'rgba(255, 153, 0, 0.12)'
+                  : 'rgba(244, 98, 95, 0.12)',
+                border:
+                  prediction.verdict === 'CONFIRMED' ? '1px solid rgba(78, 192, 122, 0.4)'
+                  : prediction.verdict === 'INCONCLUSIVE' ? '1px solid rgba(255, 153, 0, 0.4)'
+                  : '1px solid rgba(244, 98, 95, 0.4)',
+              }}
+            >
+              {prediction.verdict}
+              {prediction.confidence && (
+                <span className="ml-2 opacity-70">conf={prediction.confidence}</span>
+              )}
+            </span>
+          </>
+        )}
+
+        {prediction?.disagreement_z != null && (
+          <>
+            <Label>Disagreement z</Label>
+            <span className="font-mono" style={{ color: 'var(--color-ink-2)' }}>
+              {prediction.disagreement_z.toFixed(2)}
+              {prediction.independent_energy != null && (
+                <span className="text-xs font-normal ml-2"
+                      style={{ color: 'var(--color-ink-dim)' }}>
+                  indep E = {prediction.independent_energy.toFixed(2)} kcal/mol
+                </span>
+              )}
+            </span>
+          </>
+        )}
+
+        <Label>Backbone</Label>
+        <span className="font-mono text-xs" style={{ color: 'var(--color-ink-dim)' }}>
+          {prediction?.model_version ?? '—'}
+        </span>
+      </div>
+      {prediction?.verdict_reason && (
+        <div className="px-5 py-3 text-xs italic border-t"
+             style={{
+               background: 'rgba(255, 153, 0, 0.08)',
+               color: '#a55a00',
+               borderColor: 'var(--color-line)',
+             }}>
+          {prediction.verdict_reason}
+        </div>
+      )}
+    </GlowCard>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[11px] font-mono tracking-[0.18em] uppercase self-center"
+          style={{ color: 'var(--color-ink-dim)' }}>
+      {children}
+    </span>
+  );
+}
 
 function RationalePanel({ prediction }: { prediction: PredictResponse | null }) {
   if (!prediction) {
     return (
-      <div className="border border-slate-200 bg-white rounded-md shadow-sm overflow-hidden flex-1 flex flex-col">
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 flex justify-between items-center">
-          <span className="font-semibold text-slate-700 text-sm tracking-tight">Rationale (regex verified)</span>
-          <span className="text-xs text-slate-500 font-mono bg-slate-200 px-1.5 py-0.5 rounded">— / —</span>
-        </div>
-        <div className="p-5 text-sm text-slate-400 italic grow flex items-center justify-center">
+      <GlowCard className="flex-1 flex flex-col">
+        <CardHeader
+          right={
+            <span className="text-[11px] font-mono px-2 py-0.5 rounded-full"
+                  style={{
+                    background: '#f3f5fb',
+                    color: 'var(--color-ink-dim)',
+                  }}>
+              — / —
+            </span>
+          }
+        >
+          Rationale (regex verified)
+        </CardHeader>
+        <div className="p-6 text-sm italic flex-1 flex items-center justify-center"
+             style={{ color: 'var(--color-ink-dim)' }}>
           Press Predict to generate a rationale.
         </div>
-      </div>
+      </GlowCard>
     );
   }
 
@@ -467,26 +517,45 @@ function RationalePanel({ prediction }: { prediction: PredictResponse | null }) 
   const passing = grounded > 0 ? `${v.verified}/${grounded} (${pct}%)` : `0 / ${v.total}`;
 
   return (
-    <div className="border border-slate-200 bg-white rounded-md shadow-sm overflow-hidden flex-1 flex flex-col">
-      <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 flex justify-between items-center">
-        <span className="font-semibold text-slate-700 text-sm tracking-tight">Rationale (regex verified)</span>
-        <span className="text-xs text-slate-500 font-mono bg-slate-200 px-1.5 py-0.5 rounded">{passing}</span>
-      </div>
-      <div className="p-5 text-sm leading-relaxed text-slate-700 font-sans flex flex-col gap-4 bg-slate-50/30 grow">
+    <GlowCard className="flex-1 flex flex-col">
+      <CardHeader
+        right={
+          <span
+            className="text-[11px] font-mono px-2 py-0.5 rounded-full"
+            style={{
+              background: pct >= 75 ? 'rgba(78, 192, 122, 0.12)' : 'rgba(255, 153, 0, 0.12)',
+              color:      pct >= 75 ? '#4ec07a'        : '#FF9900',
+              border: '1px solid ' + (pct >= 75 ? 'rgba(78, 192, 122, 0.4)' : 'rgba(255, 153, 0, 0.4)'),
+            }}
+          >
+            {passing}
+          </span>
+        }
+      >
+        Rationale · regex verified
+      </CardHeader>
+      <div className="p-5 text-[14px] leading-relaxed flex flex-col gap-4 flex-1"
+           style={{ color: 'var(--color-ink-2)' }}>
         <p className="whitespace-pre-wrap">{prediction.rationale}</p>
         {v.claims.length > 0 && (
-          <ul className="border-t border-slate-200 pt-3 flex flex-col gap-1.5">
+          <ul className="border-t pt-3 flex flex-col gap-2 fx-stagger"
+              style={{ borderColor: 'var(--color-line)' }}>
             {v.claims.map((c, i) => (
               <li key={i} className="flex items-start gap-2 text-xs font-mono">
                 <VerifierMark status={statusToMark(c.status)} />
-                <span className="text-slate-600">{c.text}</span>
-                {c.evidence && <span className="text-slate-400 ml-auto whitespace-nowrap">{c.evidence}</span>}
+                <span style={{ color: 'var(--color-ink-2)' }}>{c.text}</span>
+                {c.evidence && (
+                  <span className="ml-auto whitespace-nowrap"
+                        style={{ color: 'var(--color-ink-dim)' }}>
+                    {c.evidence}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
         )}
       </div>
-    </div>
+    </GlowCard>
   );
 }
 
@@ -503,40 +572,42 @@ function StructurePanel({
   onTogglePlay: () => void;
   onFrameChange: (f: number) => void;
 }) {
-  const [mode, setMode] = useState<'image' | 'live'>('image');
+  const [mode, setMode] = useState<'image' | 'live'>('live');
   const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-  // currentFrame is now in raw MD-frame space (0..99) for everything.
-  // The image endpoint takes the raw frame directly.
   const mdFrame = Math.max(0, Math.min(currentFrame, 99));
   const imgSrc = `/api/frame_image/${encodeURIComponent(pdb)}?frame=${mdFrame}&width=600`;
 
   return (
-    <div className="border border-slate-200 bg-white rounded-md shadow-sm overflow-hidden h-[340px] flex flex-col">
-      <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 flex items-center justify-between">
-        <span className="font-semibold text-slate-700 text-sm flex items-center gap-2">
-          <Box size={14} className="text-slate-500" /> 3D pocket view ({pdb})
-        </span>
-        <div className="flex gap-2">
-          {/* Image (static, server-rendered) vs Live (3Dmol, client-side) */}
-          <div className="flex border border-slate-200 rounded divide-x divide-slate-200 text-xs font-mono overflow-hidden bg-white">
+    <GlowCard className="h-[380px] flex flex-col">
+      <CardHeader
+        icon={<Box size={14} style={{ color: '#5467F2' }} />}
+        right={
+          <div className="flex gap-2 items-center">
+            <Segmented value={mode} options={['image', 'live'] as const} onChange={setMode} />
             <button
-              onClick={() => setMode('image')}
-              className={mode === 'image' ? 'px-2 py-1 bg-slate-200 text-slate-800' : 'px-2 py-1 text-slate-500 hover:bg-slate-50'}
-            >image</button>
-            <button
-              onClick={() => setMode('live')}
-              className={mode === 'live' ? 'px-2 py-1 bg-slate-200 text-slate-800' : 'px-2 py-1 text-slate-500 hover:bg-slate-50'}
-            >live 3D</button>
+              onClick={onTogglePlay}
+              className="flex items-center gap-1.5 text-[11px] font-mono font-semibold px-2.5 py-1 rounded-full transition"
+              style={{
+                background: 'rgba(84, 103, 242, 0.15)',
+                color: '#5467F2',
+                border: '1px solid rgba(84, 103, 242, 0.4)',
+              }}
+            >
+              {playing
+                ? <><Pause size={11} /> pause</>
+                : <><Play size={11} /> play</>}
+            </button>
           </div>
-          <button
-            onClick={onTogglePlay}
-            className="flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded bg-slate-200 hover:bg-slate-300 text-slate-700 transition"
-          >
-            {playing ? <><Pause size={12} className="fill-slate-700" /> pause</> : <><Play size={12} className="fill-slate-700" /> play</>}
-          </button>
-        </div>
-      </div>
-      <div className="grow bg-[#1a1b26] relative overflow-hidden">
+        }
+      >
+        3D pocket · <span className="font-mono">{pdb}</span>
+      </CardHeader>
+      <div className="viewer-frame flex-1 relative">
+        <span className="viewer-corner tl" />
+        <span className="viewer-corner tr" />
+        <span className="viewer-corner bl" />
+        <span className="viewer-corner br" />
+
         {mode === 'image' && (
           <img
             key={`${pdb}-${mdFrame}`}
@@ -549,17 +620,20 @@ function StructurePanel({
         {mode === 'live' && (
           <>
             {loading && (
-              <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-xs font-mono">
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-mono"
+                   style={{ color: 'var(--color-ink-mute)' }}>
                 <Loader2 size={14} className="animate-spin mr-2" /> loading trajectory…
               </div>
             )}
             {!loading && !pdbString && (
-              <div className="absolute inset-0 flex items-center justify-center text-amber-300 text-xs font-mono italic px-4 text-center">
+              <div className="absolute inset-0 flex items-center justify-center text-xs font-mono italic px-4 text-center"
+                   style={{ color: '#FF9900' }}>
                 backend /pdb_string unavailable (HDF5 not mounted?)
               </div>
             )}
             {isMobile && pdbString && (
-              <div className="absolute top-2 left-2 right-2 bg-slate-900/80 text-slate-200 text-[10px] font-mono p-2 rounded">
+              <div className="absolute top-2 left-2 right-2 glass-strong rounded-md text-[10px] font-mono p-2"
+                   style={{ color: 'var(--color-ink-2)' }}>
                 best viewed on desktop — 3D viewer disabled on small screens
               </div>
             )}
@@ -572,11 +646,21 @@ function StructurePanel({
             )}
           </>
         )}
+        {/* HUD readout */}
+        <div className="absolute bottom-3 left-3 z-10 font-mono text-[10px] tracking-wider"
+             style={{ color: '#5467F2' }}>
+          MD {mdFrame}/99
+        </div>
       </div>
-      <div className="bg-slate-900 h-10 px-4 flex items-center justify-between text-xs font-mono text-slate-400">
+      <div className="h-10 px-4 flex items-center gap-3 text-[11px] font-mono"
+           style={{
+             background: '#f6f8fc',
+             borderTop: '1px solid var(--color-line)',
+             color: 'var(--color-ink-mute)',
+           }}>
         <button
           onClick={() => onFrameChange(Math.max(0, currentFrame - 1))}
-          className="cursor-pointer hover:text-white px-1"
+          className="cursor-pointer hover:text-ink px-1 transition-colors"
         >◀</button>
         <input
           type="range"
@@ -584,17 +668,69 @@ function StructurePanel({
           max={Math.max(0, nFrames - 1)}
           value={currentFrame}
           onChange={e => onFrameChange(parseInt(e.target.value, 10))}
-          className="flex-1 mx-4 h-1 accent-indigo-500"
+          className="flex-1 h-1 accent-cyan-400"
+          style={{ accentColor: '#5467F2' }}
         />
         <button
           onClick={() => onFrameChange(Math.min(nFrames - 1, currentFrame + 1))}
-          className="cursor-pointer hover:text-white px-1"
+          className="cursor-pointer hover:text-ink px-1 transition-colors"
         >▶</button>
-        <span className="ml-4 w-14 text-right">
+        <span className="w-14 text-right">
           {mode === 'image' ? `MD ${mdFrame}/99` : `${currentFrame + 1}/${nFrames}`}
         </span>
       </div>
-    </div>
+    </GlowCard>
+  );
+}
+
+
+function ChannelsPanel({ channels, currentFrame, nFrames }: { channels: ChannelFrame[] | null; currentFrame: number; nFrames: number }) {
+  return (
+    <GlowCard className="flex-1 flex flex-col">
+      <CardHeader
+        right={
+          <span className="text-[10px] font-mono tracking-wider"
+                style={{ color: '#5467F2' }}>
+            MD {currentFrame}/{nFrames - 1}
+          </span>
+        }
+      >
+        Per-frame channels
+      </CardHeader>
+      <div className="p-4 flex-1 min-h-[240px]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={channels ?? MOCK_CHART_DATA} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+            <defs>
+              <linearGradient id="rmsdStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"  stopColor="#f4625f" />
+                <stop offset="100%" stopColor="#FF9900" />
+              </linearGradient>
+              <linearGradient id="energyStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"  stopColor="#5467F2" />
+                <stop offset="100%" stopColor="#8a96f5" />
+              </linearGradient>
+              <linearGradient id="bsasaStroke" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%"  stopColor="#8a96f5" />
+                <stop offset="100%" stopColor="#4ec07a" />
+              </linearGradient>
+            </defs>
+            <ReferenceLine x={currentFrame} stroke="#5467F2" strokeOpacity={0.7} strokeWidth={1.2} />
+            <Line type="monotone" yAxisId="rmsd"   dataKey="rmsd"   stroke="url(#rmsdStroke)"   dot={false} strokeWidth={1.6} />
+            <Line type="monotone" yAxisId="energy" dataKey="energy" stroke="url(#energyStroke)" dot={false} strokeWidth={1.6} />
+            <Line type="monotone" yAxisId="bsasa"  dataKey="bsasa"  stroke="url(#bsasaStroke)"  dot={false} strokeWidth={1.6} />
+            <YAxis yAxisId="rmsd"   hide domain={['dataMin - 0.2', 'dataMax + 0.2']} />
+            <YAxis yAxisId="energy" hide domain={['dataMin - 5',   'dataMax + 5']} />
+            <YAxis yAxisId="bsasa"  hide domain={['dataMin - 20',  'dataMax + 20']} />
+          </LineChart>
+        </ResponsiveContainer>
+        <div className="flex gap-4 mt-2 justify-center text-[11px] font-mono">
+          <span style={{ color: '#f4625f' }}>── RMSD</span>
+          <span style={{ color: '#5467F2' }}>── energy</span>
+          <span style={{ color: '#8a96f5' }}>── bSASA</span>
+          {!channels && <span className="italic" style={{ color: 'var(--color-ink-dim)' }}>(channels endpoint loading…)</span>}
+        </div>
+      </div>
+    </GlowCard>
   );
 }
 
@@ -610,7 +746,8 @@ function AgentVerdictPanel({
 }) {
   if (!prediction) {
     return (
-      <div className="border border-slate-200 bg-slate-50/50 rounded-md text-slate-500 text-sm italic px-6 py-10 text-center">
+      <div className="glass rounded-2xl bevel-border text-sm italic px-6 py-10 text-center"
+           style={{ color: 'var(--color-ink-dim)' }}>
         Run Predict first; the independent agent panel will appear here.
       </div>
     );
@@ -618,96 +755,144 @@ function AgentVerdictPanel({
 
   if (!agent) {
     return (
-      <div className="border border-indigo-200 bg-indigo-50/30 rounded-md p-6 flex flex-col gap-3 items-start">
-        <h3 className="font-semibold text-slate-800">Independent agent verdict</h3>
-        <p className="text-sm text-slate-600 max-w-2xl">
-          Re-checks this prediction against orthogonal evidence (raw coordinates,
-          Vina, label-filtered literature). Takes ~20 s and costs ~$0.30 per run.
-          Cached results are free.
+      <GlowCard tone="violet" className="p-7 flex flex-col gap-4 items-start relative overflow-hidden">
+        <div
+          className="absolute -right-12 -top-12 w-72 h-72 rounded-full opacity-50 pointer-events-none"
+          style={{
+            background: 'radial-gradient(circle, rgba(138, 150, 245, 0.5), transparent 60%)',
+            filter: 'blur(30px)',
+          }}
+        />
+        <h3 className="relative font-display text-lg font-semibold tracking-tight"
+            style={{ color: 'var(--color-ink)' }}>
+          Independent agent verdict
+        </h3>
+        <p className="relative text-sm max-w-2xl leading-relaxed"
+           style={{ color: 'var(--color-ink-mute)' }}>
+          Re-checks this prediction against orthogonal evidence — raw coordinates, Vina,
+          label-filtered literature. ~20 s and ~$0.30 per run. Cached results are free.
         </p>
         {agentError && (
-          <div className="text-sm text-rose-700 bg-rose-50 border border-rose-200 px-3 py-1 rounded">
+          <div className="relative text-sm px-3 py-1.5 rounded"
+               style={{
+                 background: 'rgba(244, 98, 95, 0.12)',
+                 color: '#c83b37',
+                 border: '1px solid rgba(244, 98, 95, 0.4)',
+               }}>
             {agentError.message} (status {agentError.status})
           </div>
         )}
         <button
           onClick={onRequestRun}
           disabled={agentLoading}
-          className="bg-indigo-600 text-white text-sm font-semibold px-4 py-2 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="relative btn-primary rounded-lg px-5 py-2.5 text-sm flex items-center gap-2"
         >
           {agentLoading && <Loader2 size={14} className="animate-spin" />}
           {agentLoading ? 'Running…' : 'Run deep evaluation'}
         </button>
-      </div>
+      </GlowCard>
     );
   }
 
   const v = agent.verdict;
   const scoreRows = [
     { label: 'Structural', score: v.scores.structural_consistency, description: 'cluster_poses, clash_check' },
-    { label: 'Physical', score: v.scores.physical_consistency, description: 'vina_rescore, hbond_persistence' },
-    { label: 'Literature', score: v.scores.literature_consistency, description: 'rag_query (label-filtered)' },
-    { label: 'Chemical', score: v.scores.chemical_plausibility, description: 'ligand_descriptors' },
+    { label: 'Physical',   score: v.scores.physical_consistency,    description: 'vina_rescore, hbond_persistence' },
+    { label: 'Literature', score: v.scores.literature_consistency,  description: 'rag_query (label-filtered)' },
+    { label: 'Chemical',   score: v.scores.chemical_plausibility,   description: 'ligand_descriptors' },
   ];
 
   return (
-    <div className="border border-indigo-200 bg-[#fbfbfe] rounded-md shadow-sm overflow-hidden relative">
-      <div className="absolute top-0 left-0 bottom-0 w-1 bg-indigo-500"></div>
-      <div className="p-6 pl-8">
-        <h3 className="font-semibold text-slate-800 mb-6 flex items-center gap-2">
+    <GlowCard tone="violet" className="p-7 relative overflow-hidden">
+      <div
+        className="absolute -right-10 -top-10 w-80 h-80 rounded-full opacity-40 pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(138, 150, 245, 0.45), transparent 60%)',
+          filter: 'blur(28px)',
+        }}
+      />
+      <h3 className="relative flex items-center gap-3 mb-6">
+        <span className="font-display text-lg font-semibold tracking-tight"
+              style={{ color: 'var(--color-ink)' }}>
           Independent agent verdict
-          {v.cached && <span className="text-xs font-mono bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">cached</span>}
-        </h3>
-
-        <div className="mb-6 flex gap-4 items-center">
-          <span className="text-slate-500 text-sm font-medium">Recommendation:</span>
-          <RecommendationPill type={v.recommendation} />
-        </div>
-
-        <div className="flex flex-col gap-2.5 mb-8 max-w-3xl">
-          {scoreRows.map(r => (
-            <ScoreBar key={r.label} label={r.label} score={r.score} description={r.description} />
-          ))}
-        </div>
-
-        <AgentTrace steps={agent.trace.map((s: TraceStep) => ({
-          tool: s.tool,
-          result: typeof s.result === 'string' ? s.result : JSON.stringify(s.result).slice(0, 160),
-        }))} />
-
-        {v.citations.length > 0 && (
-          <div className="mt-8 mb-8 text-sm font-sans">
-            <h4 className="font-semibold text-slate-700 mb-3 tracking-tight flex items-center">
-              <ChevronDown size={14} className="mr-1 -ml-1 text-slate-400" /> Citations
-            </h4>
-            <ul className="pl-5 space-y-2 text-slate-600">
-              {v.citations.map((c, i) => (
-                <li key={i}>
-                  <Citation>{c.chunk_id}</Citation>{' '}
-                  <span className="text-xs text-slate-400 font-mono">score={c.score.toFixed(2)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        </span>
+        {v.cached && (
+          <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-full"
+                style={{
+                  background: 'rgba(78, 192, 122, 0.12)',
+                  color: '#4ec07a',
+                  border: '1px solid rgba(78, 192, 122, 0.4)',
+                }}>
+            cached
+          </span>
         )}
+      </h3>
 
-        {v.independence_caveats.length > 0 && (
-          <div className="mb-8 p-4 bg-slate-50 border border-slate-200 rounded-md text-sm text-slate-700 font-sans shadow-sm">
-            <div className="font-semibold mb-2">Caveats:</div>
-            <ul className="space-y-1 text-slate-600 pl-4 list-disc marker:text-slate-400">
-              {v.independence_caveats.map((c, i) => (
-                <li key={i}>{c}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="text-xs font-mono text-slate-500">
-          {v.agent_trace.tool_calls} tool calls · {(v.agent_trace.latency_ms / 1000).toFixed(1)} s ·
-          {' '}{v.agent_trace.input_tokens} in / {v.agent_trace.output_tokens} out tokens
-        </div>
+      <div className="relative mb-6 flex gap-4 items-center">
+        <span className="text-[11px] font-mono tracking-[0.18em] uppercase"
+              style={{ color: 'var(--color-ink-dim)' }}>
+          Recommendation
+        </span>
+        <RecommendationPill type={v.recommendation} />
       </div>
-    </div>
+
+      <div className="relative flex flex-col gap-3 mb-8 max-w-3xl fx-stagger">
+        {scoreRows.map(r => (
+          <ScoreBar key={r.label} label={r.label} score={r.score} description={r.description} />
+        ))}
+      </div>
+
+      <AgentTrace steps={agent.trace.map((s: TraceStep) => ({
+        tool: s.tool,
+        result: typeof s.result === 'string' ? s.result : JSON.stringify(s.result).slice(0, 160),
+      }))} />
+
+      {v.citations.length > 0 && (
+        <div className="relative mt-7 text-sm">
+          <h4 className="text-[11px] font-mono tracking-[0.18em] uppercase mb-3"
+              style={{ color: 'var(--color-ink-dim)' }}>
+            Citations
+          </h4>
+          <ul className="space-y-2">
+            {v.citations.map((c, i) => (
+              <li key={i} className="flex items-baseline gap-2 text-[13px]"
+                  style={{ color: 'var(--color-ink-2)' }}>
+                <Citation>{c.chunk_id}</Citation>
+                <span className="text-xs font-mono"
+                      style={{ color: 'var(--color-ink-dim)' }}>
+                  score={c.score.toFixed(2)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {v.independence_caveats.length > 0 && (
+        <div className="relative mt-7 p-4 rounded-xl text-sm"
+             style={{
+               background: '#fafbfd',
+               border: '1px solid var(--color-line)',
+               color: 'var(--color-ink-2)',
+             }}>
+          <div className="text-[11px] font-mono tracking-[0.18em] uppercase mb-2"
+               style={{ color: 'var(--color-ink-dim)' }}>
+            Caveats
+          </div>
+          <ul className="space-y-1 pl-4 list-disc marker:text-[#9a9fb3]">
+            {v.independence_caveats.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="relative mt-5 text-[11px] font-mono tracking-wider"
+           style={{ color: 'var(--color-ink-dim)' }}>
+        {v.agent_trace.tool_calls} tool calls · {(v.agent_trace.latency_ms / 1000).toFixed(1)}s ·{' '}
+        {v.agent_trace.input_tokens} in / {v.agent_trace.output_tokens} out tokens
+      </div>
+    </GlowCard>
   );
 }
 
@@ -724,34 +909,40 @@ function CostModal({
   const blocked = remaining != null && remaining < estimateUsd;
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
-        <h3 className="font-semibold text-slate-900 text-lg mb-2">Run independent agent</h3>
-        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-          This call will spend ~<span className="font-mono">${estimateUsd.toFixed(2)}</span> on the
-          OpenRouter API (Claude Opus 4.7 + ~6 tool calls).
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 fx-fade-soft"
+         style={{ background: 'rgba(20, 22, 43, 0.4)', backdropFilter: 'blur(8px)' }}>
+      <GlowCard tone="cyan" className="max-w-md w-full p-7">
+        <h3 className="font-display font-semibold text-lg mb-2 tracking-tight"
+            style={{ color: 'var(--color-ink)' }}>
+          Run independent agent
+        </h3>
+        <p className="text-sm mb-4 leading-relaxed"
+           style={{ color: 'var(--color-ink-mute)' }}>
+          This call will spend ~<span className="font-mono" style={{ color: 'var(--color-ink)' }}>
+            ${estimateUsd.toFixed(2)}</span> on the OpenRouter API (Claude Opus 4.7 + ~6 tool calls).
         </p>
         {remaining != null && (
-          <p className="text-xs font-mono text-slate-500 mb-4">
+          <p className="text-xs font-mono mb-4"
+             style={{ color: 'var(--color-ink-dim)' }}>
             Daily cap remaining: ${remaining.toFixed(2)}{blocked && ' — insufficient'}
           </p>
         )}
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50 rounded-md"
+            className="btn-ghost rounded-lg px-4 py-2 text-sm"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={blocked}
-            className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary rounded-lg px-4 py-2 text-sm"
           >
-            Confirm — run agent
+            Confirm · run agent
           </button>
         </div>
-      </div>
+      </GlowCard>
     </div>
   );
 }

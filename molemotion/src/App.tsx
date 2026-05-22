@@ -1,109 +1,136 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { clsx } from 'clsx';
+
 import { SingleView } from './views/SingleView.tsx';
 import { BatchView } from './views/BatchView.tsx';
 import { FailureModesView } from './views/FailureModesView.tsx';
 import { KnowledgeView } from './views/KnowledgeView.tsx';
 import { AboutView } from './views/AboutView.tsx';
-import { Database } from 'lucide-react';
+import { Brand } from './components/Brand.tsx';
+import { BackgroundFX } from './components/BackgroundFX.tsx';
 
-type ViewState = 'single' | 'batch' | 'failure' | 'knowledge' | 'about';
+type ViewState = 'about' | 'single' | 'batch' | 'failure' | 'knowledge';
 type Variant = 'v1a' | 'v1b';
 
 const DEFAULT_PDB = '1A1B';
 
+const TABS: Array<{ id: ViewState; label: string }> = [
+  { id: 'about',     label: 'Overview' },
+  { id: 'single',    label: 'Inspect' },
+  { id: 'batch',     label: 'Triage' },
+  { id: 'failure',   label: 'Failure modes' },
+  { id: 'knowledge', label: 'Knowledge' },
+];
+
 export default function App() {
-  const [view, setView] = useState<ViewState>('batch');
+  const [view, setView] = useState<ViewState>('about');
   const [selectedPDB, setSelectedPDB] = useState<string>(DEFAULT_PDB);
   const [variant, setVariant] = useState<Variant>('v1b');
+  const [transitionKey, setTransitionKey] = useState(0);
+
+  useEffect(() => {
+    setTransitionKey(k => k + 1);
+  }, [view]);
 
   const goToSingle = (pdb?: string) => {
     if (pdb) setSelectedPDB(pdb);
     setView('single');
   };
 
-  const tabs = [
-    { id: 'single', label: 'Single' },
-    { id: 'batch', label: 'Batch' },
-    { id: 'failure', label: 'Failure modes' },
-    { id: 'knowledge', label: 'Knowledge' },
-    { id: 'about', label: 'About' },
-  ];
-
   return (
-    <div className="min-h-screen bg-slate-100/50 text-slate-900 font-sans p-[4vh] flex justify-center">
+    <div className="min-h-screen relative" style={{ color: 'var(--color-ink)' }}>
+      <BackgroundFX />
 
-      {/* Outer Browser/App Window Shell */}
-      <div className="w-full max-w-6xl bg-white shadow-xl shadow-slate-200/50 border border-slate-200/60 rounded-xl overflow-hidden flex flex-col">
+      {/* ---------- Pitch-deck nav: pill tabs, active = bordered ink ---------- */}
+      <header className="sticky top-0 z-40 px-6 pt-6 pb-3">
+        <div className="max-w-[1320px] mx-auto flex items-center justify-between gap-6">
+          <Brand onClick={() => setView('about')} />
 
-        {/* Header Navigation */}
-        <header className="flex items-center justify-between px-6 bg-[#f8fafc] border-b border-slate-200 shrink-0">
-
-          <div className="flex items-center gap-3 py-4 text-slate-800 cursor-pointer" onClick={() => setView('about')}>
-            <div className="p-1.5 bg-blue-500 rounded">
-               <Database className="text-white" size={16} />
-            </div>
-            <div className="flex flex-col">
-              <div className="font-bold tracking-tight text-[18px] leading-none mb-1">
-                 <span className="text-blue-500">Mole</span><span className="text-slate-900">Motion</span>
-              </div>
-              <span className="text-[11px] text-slate-500 italic leading-none tracking-wide">motion tells what structure hides.</span>
-            </div>
-          </div>
-
-          <nav className="flex gap-1 h-full items-end">
-            {tabs.map((tab) => {
+          <nav className="hidden md:flex items-center gap-2">
+            {TABS.map((tab) => {
               const active = view === tab.id;
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setView(tab.id as ViewState)}
-                  className={clsx(
-                    "relative px-4 py-3.5 text-[14px] font-medium transition-colors hover:text-slate-900 hover:bg-white bottom-[-1px]",
-                    active
-                      ? "text-indigo-700 bg-white border-x border-t border-slate-200 border-b border-b-transparent rounded-t-md z-10"
-                      : "text-slate-500 border border-transparent"
-                  )}
+                  onClick={() => setView(tab.id)}
+                  className={clsx('tab-pill', active && 'on')}
                 >
-                  {active && <span className="absolute top-0 left-0 right-0 h-[2px] bg-indigo-600 rounded-t-md" />}
                   {tab.label}
                 </button>
               );
             })}
           </nav>
 
-        </header>
+          {/* mobile dropdown */}
+          <select
+            className="md:hidden glass rounded-full px-3 py-1.5 text-sm shadow-card"
+            value={view}
+            onChange={(e) => setView(e.target.value as ViewState)}
+            style={{ color: 'var(--color-ink)', background: '#ffffff' }}
+          >
+            {TABS.map(t => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
 
-        {/* Content Area */}
-        <main className="p-8 grow bg-white overflow-y-auto">
-           {view === 'single' && (
-             <SingleView
-               pdb={selectedPDB}
-               variant={variant}
-               onPdbChange={setSelectedPDB}
-               onVariantChange={setVariant}
-             />
-           )}
-           {view === 'batch' && (
-             <BatchView
-               variant={variant}
-               onVariantChange={setVariant}
-               onGoToSingle={goToSingle}
-             />
-           )}
-           {view === 'failure' && (
-             <FailureModesView
-               variant={variant}
-               onVariantChange={setVariant}
-               onGoToSingle={goToSingle}
-             />
-           )}
-           {view === 'knowledge' && <KnowledgeView />}
-           {view === 'about' && <AboutView />}
-        </main>
+          <a
+            href="https://github.com"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden md:flex items-center gap-2 rounded-full px-4 py-2 text-[12px] font-mono tracking-wider transition shadow-card"
+            style={{
+              color: 'var(--color-ink-2)',
+              background: '#ffffff',
+              border: '1.5px solid var(--color-line)',
+            }}
+          >
+            <span className="dot-live" />
+            v0.1 · live
+          </a>
+        </div>
+      </header>
 
-      </div>
+      {/* ---------- View body ---------- */}
+      <main className="px-6 pb-24 pt-2">
+        <div key={transitionKey} className="max-w-[1320px] mx-auto fx-fade-in">
+          {view === 'about' && <AboutView onGoToSingle={goToSingle} onGoToTab={setView as (v: string) => void} />}
+          {view === 'single' && (
+            <SingleView
+              pdb={selectedPDB}
+              variant={variant}
+              onPdbChange={setSelectedPDB}
+              onVariantChange={setVariant}
+            />
+          )}
+          {view === 'batch' && (
+            <BatchView
+              variant={variant}
+              onVariantChange={setVariant}
+              onGoToSingle={goToSingle}
+            />
+          )}
+          {view === 'failure' && (
+            <FailureModesView
+              variant={variant}
+              onVariantChange={setVariant}
+              onGoToSingle={goToSingle}
+            />
+          )}
+          {view === 'knowledge' && <KnowledgeView />}
+        </div>
+      </main>
 
+      {/* ---------- Footer ---------- */}
+      <footer className="border-t" style={{ borderColor: 'var(--color-line)' }}>
+        <div className="max-w-[1320px] mx-auto px-6 py-6 flex flex-wrap items-center justify-between gap-4 text-[11px] font-mono tracking-wider"
+             style={{ color: 'var(--color-ink-dim)' }}>
+          <span>TRAJECTA · COLOSSEUM IDEARUM 2026 · DEMO ARTIFACT</span>
+          <span className="flex items-center gap-3">
+            <span>MISATO · OPENTSLM-SP · ANTHROPIC</span>
+            <span className="dot-live" />
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }
