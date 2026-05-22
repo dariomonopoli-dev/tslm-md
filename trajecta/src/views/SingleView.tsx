@@ -387,12 +387,17 @@ function PredictionCard({ prediction }: { prediction: PredictResponse | null }) 
           {prediction ? (
             <>
               <AnimatedNumber value={prediction.pK} decimals={2} className="text-gradient-cool" />
-              {prediction.affinity != null && (
-                <span className="text-xs font-normal ml-2"
-                      style={{ color: 'var(--color-ink-dim)' }}>
-                  ΔG = {prediction.affinity.toFixed(2)} kcal/mol
-                </span>
-              )}
+              <span className="text-xs font-normal ml-2 inline-flex gap-2 align-middle"
+                    style={{ color: 'var(--color-ink-dim)' }}>
+                {prediction.affinity != null && (
+                  <span>ΔG = {prediction.affinity.toFixed(2)} kcal/mol</span>
+                )}
+                {prediction.affinity_pK != null && (
+                  <span title="raw v1b regression-head output (pK)">
+                    raw pK = {prediction.affinity_pK.toFixed(3)}
+                  </span>
+                )}
+              </span>
             </>
           ) : <span style={{ color: 'var(--color-ink-faint)' }}>—</span>}
         </span>

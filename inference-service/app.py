@@ -145,7 +145,7 @@ def _build_predict_response(result: dict) -> dict:
     if tunnel_raw:
         for k in ("verdict", "verdict_reason", "confidence",
                   "independent_energy", "disagreement_z",
-                  "channel_summary", "affinity"):
+                  "channel_summary", "affinity", "affinity_pK"):
             if k in tunnel_raw:
                 extras[k] = tunnel_raw[k]
     return {

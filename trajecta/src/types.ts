@@ -69,7 +69,8 @@ export interface PredictResponse {
   verdict?: 'CONFIRMED' | 'INCONCLUSIVE' | string;
   verdict_reason?: string;
   confidence?: 'low' | 'medium' | 'high' | string;
-  affinity?: number;            // kcal/mol (the tunnel's raw output)
+  affinity?: number;            // ΔG kcal/mol (display unit)
+  affinity_pK?: number;         // raw v1b regression head output (pK)
   independent_energy?: number;
   disagreement_z?: number;
   channel_summary?: Record<string, {
